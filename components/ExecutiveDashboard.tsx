@@ -21,23 +21,26 @@ export function ExecutiveDashboard() {
   const { ville, projet } = useCockpitFilter();
   const cockpitStats = useMemo(() => getFilteredCockpitStats(ville, projet), [ville, projet]);
 
-  const trainingSummary = useMemo(() => getTrainingSummary(), []);
-  const causerieSummary = useMemo(() => getCauserieSummary(), []);
-  const duerpSummary    = useMemo(() => getDuerpSummary(), []);
-  const medicalSummary  = useMemo(() => getMedicalSummary(), []);
-  const consoSummary    = useMemo(() => getConsommationSummary(), []);
+  const v = ville || undefined;
+  const trainingSummary = useMemo(() => getTrainingSummary(v),         [v]);
+  const causerieSummary = useMemo(() => getCauserieSummary(v),         [v]);
+  const duerpSummary    = useMemo(() => getDuerpSummary(v),            [v]);
+  const medicalSummary  = useMemo(() => getMedicalSummary(v),          [v]);
+  const consoSummary    = useMemo(() => getConsommationSummary(v),     [v]);
 
   const radarData = cockpitStats.moduleStats.map((m) => ({ subject: m.shortName, conformite: m.compliance, full: 100 }));
 
+  const isFiltered = cockpitStats.isFiltered;
+
   const kpis = [
-    { label:"Accidents ce mois",       val:7,   prev:11,  unit:"",    icon:AlertTriangle, color:"#dc2626", thresholds:[5,10] as [number,number], lower:true },
-    { label:"TF (acc. avec arrêt×1M/h)",val:2.8, prev:3.4, unit:"",   icon:TrendingDown,  color:"#ea580c", thresholds:[3,5]  as [number,number], lower:true },
-    { label:"Heures sans accident",     val:1240,prev:850, unit:" h",  icon:Shield,        color:"#16a34a", thresholds:[500,1000] as [number,number], lower:false },
-    { label:"Taux conformité global",   val:83,  prev:79,  unit:"%",   icon:CheckCircle2,  color:"#0f766e", thresholds:[75,85]  as [number,number], lower:false },
-    { label:"Actions en retard",        val:44,  prev:52,  unit:"",    icon:AlertTriangle, color:"#d97706", thresholds:[20,40]  as [number,number], lower:true },
-    { label:"Habilitations à jour",     val:trainingSummary.tauxAJour, prev:80, unit:"%", icon:Target, color:"#2563eb", thresholds:[80,90] as [number,number], lower:false },
-    { label:"Taux causeries",           val:causerieSummary.tauxParticipation, prev:88, unit:"%", icon:CheckCircle2, color:"#0f766e", thresholds:[90,100] as [number,number], lower:false },
-    { label:"Risques critiques DUERP",  val:duerpSummary.critique, prev:3, unit:"", icon:AlertTriangle, color:"#dc2626", thresholds:[3,6] as [number,number], lower:true },
+    { label:"Accidents ce mois",        val: isFiltered ? cockpitStats.criticalCount       : 7,    prev:11,  unit:"",   icon:AlertTriangle, color:"#dc2626", thresholds:[5,10]    as [number,number], lower:true },
+    { label:"TF (acc. avec arrêt×1M/h)",val: 2.8,                                                  prev:3.4, unit:"",   icon:TrendingDown,  color:"#ea580c", thresholds:[3,5]     as [number,number], lower:true },
+    { label:"Heures sans accident",      val: 1240,                                                 prev:850, unit:" h", icon:Shield,        color:"#16a34a", thresholds:[500,1000] as [number,number], lower:false },
+    { label:"Taux conformité global",    val: cockpitStats.averageCompliance,                       prev:79,  unit:"%",  icon:CheckCircle2,  color:"#0f766e", thresholds:[75,85]   as [number,number], lower:false },
+    { label:"Actions en retard",         val: cockpitStats.totalOpenItems,                          prev:52,  unit:"",   icon:AlertTriangle, color:"#d97706", thresholds:[20,40]   as [number,number], lower:true },
+    { label:"Habilitations à jour",      val: trainingSummary.tauxAJour,                            prev:80,  unit:"%",  icon:Target,        color:"#2563eb", thresholds:[80,90]   as [number,number], lower:false },
+    { label:"Taux causeries",            val: causerieSummary.tauxParticipation,                    prev:88,  unit:"%",  icon:CheckCircle2,  color:"#0f766e", thresholds:[90,100]  as [number,number], lower:false },
+    { label:"Risques critiques DUERP",   val: duerpSummary.critique,                                prev:3,   unit:"",   icon:AlertTriangle, color:"#dc2626", thresholds:[3,6]     as [number,number], lower:true },
   ];
 
   const siteScores = cockpitStats.filteredSites.map((s) => ({
@@ -45,11 +48,19 @@ export function ExecutiveDashboard() {
     status: s.conformite >= 85 ? "vert" : s.conformite >= 70 ? "orange" : "rouge",
   }));
 
-  const topRisques = [
-    { titre:"Chute de hauteur — Echafaudage Abidjan",   niveau:"Critique", criticite:60, action:"Formation recyclage en cours" },
-    { titre:"Collision engin/piéton — Bouake",          niveau:"Critique", criticite:45, action:"Plan circulation à réviser" },
-    { titre:"Stress thermique — Yamoussoukro",          niveau:"Élevé",    criticite:45, action:"Protocole canicule validé" },
+  const ALL_RISQUES = [
+    { titre:"Chute de hauteur — Echafaudage",  ville:"Abidjan",      niveau:"Critique", criticite:60, action:"Formation recyclage en cours" },
+    { titre:"Collision engin/piéton",          ville:"Bouake",       niveau:"Critique", criticite:45, action:"Plan circulation à réviser" },
+    { titre:"Stress thermique",                ville:"Yamoussoukro", niveau:"Élevé",    criticite:45, action:"Protocole canicule validé" },
+    { titre:"Déversement produits chimiques",  ville:"San Pedro",    niveau:"Élevé",    criticite:36, action:"Mise à jour plan intervention d'urgence" },
+    { titre:"Risque électrique — tableaux HT", ville:"Abidjan",      niveau:"Critique", criticite:54, action:"Habilitations électriques à renouveler" },
+    { titre:"Travaux en hauteur sans EPI",     ville:"Bouake",       niveau:"Critique", criticite:48, action:"Arrêt chantier jusqu'à équipement complet" },
   ];
+
+  const topRisques = (ville
+    ? ALL_RISQUES.filter((r) => r.ville === ville)
+    : ALL_RISQUES
+  ).slice(0, 3);
 
   const trend = cockpitStats.filteredTrend.map((m) => ({ ...m, objectif: 8 }));
 
@@ -116,7 +127,7 @@ export function ExecutiveDashboard() {
             {topRisques.map((r, i) => (
               <div key={i} style={{ padding:"12px 14px", background:"var(--bg)", borderRadius:8, borderLeft:`3px solid ${r.niveau === "Critique" ? "#dc2626" : "#ea580c"}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                  <span style={{ fontWeight:600, fontSize:13 }}>{r.titre}</span>
+                  <span style={{ fontWeight:600, fontSize:13 }}>{r.titre} — <span style={{ color:"var(--muted)", fontWeight:400 }}>{r.ville}</span></span>
                   <span style={{ fontSize:12, fontWeight:700, color: r.niveau === "Critique" ? "#dc2626" : "#ea580c" }}>Criticité {r.criticite}</span>
                 </div>
                 <span style={{ fontSize:12, color:"var(--muted)" }}>→ {r.action}</span>
