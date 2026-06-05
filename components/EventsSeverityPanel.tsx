@@ -178,33 +178,6 @@ export function EventsSeverityPanel() {
         </article>
       </div>
 
-      <article className="panel" style={{ marginTop: 18 }}>
-        <div className="panelHeader">
-          <div>
-            <h2>Evenements par site</h2>
-            <p>Repartition accidents, incidents et presqu&apos;accidents par site.</p>
-          </div>
-          <a className="secondaryButton" href="/modules/events" style={{ fontSize: 13 }}>
-            Voir tous les enregistrements →
-          </a>
-        </div>
-        <div className="chart compact">
-          {mounted ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={bySite} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="site" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="Accident" name="Accidents" fill="#c2410c" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Incident" name="Incidents" fill="#b45309" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Presqu'accident" name="Presqu'accidents" fill="#2563eb" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : <div className="chartSkeleton" />}
-        </div>
-      </article>
 
       <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
         <a className="primaryButton" href="/modules/events">
