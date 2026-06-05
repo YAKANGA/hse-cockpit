@@ -17,8 +17,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { moduleOperationalKpis, modules, monthlyTrend, siteBreakdown } from "@/lib/hse-data";
+import { moduleOperationalKpis, modules } from "@/lib/hse-data";
 import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { getFilteredCockpitStats } from "@/lib/cockpit-stats";
 
 type Period = "3m" | "6m" | "tout";
 
@@ -26,26 +27,25 @@ export function GlobalSynthesisCharts() {
   const [mounted, setMounted] = useState(false);
   const [period, setPeriod] = useState<Period>("6m");
   const [showN1, setShowN1] = useState(false);
-  const { ville } = useCockpitFilter();
+  const { ville, projet } = useCockpitFilter();
+  const cockpitStats = useMemo(() => getFilteredCockpitStats(ville, projet), [ville, projet]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const filteredTrend = useMemo(() => {
-    if (period === "3m") return monthlyTrend.slice(-3);
-    if (period === "6m") return monthlyTrend.slice(-6);
-    return monthlyTrend;
-  }, [period]);
+    const trend = cockpitStats.filteredTrend;
+    if (period === "3m") return trend.slice(-3);
+    if (period === "6m") return trend.slice(-6);
+    return trend;
+  }, [period, cockpitStats.filteredTrend]);
 
-  const filteredSiteBreakdown = useMemo(
-    () => ville ? siteBreakdown.filter((s) => s.site === ville) : siteBreakdown,
-    [ville],
-  );
+  const filteredSiteBreakdown = cockpitStats.filteredSites;
 
   const moduleRisk = useMemo(
     () =>
-      modules.map((module) => {
+      cockpitStats.moduleStats.map((module) => {
         const operational = moduleOperationalKpis.find((kpi) => kpi.moduleId === module.id);
         return {
           module: module.shortName,
@@ -54,17 +54,17 @@ export function GlobalSynthesisCharts() {
           alertes: operational?.alertValue ?? 0,
         };
       }),
-    [],
+    [cockpitStats.moduleStats],
   );
 
   const radarData = useMemo(
     () =>
-      modules.map((module) => ({
+      cockpitStats.moduleStats.map((module) => ({
         subject: module.shortName,
         conformite: module.compliance,
         fullMark: 100,
       })),
-    [],
+    [cockpitStats.moduleStats],
   );
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 import {
   Bar,
   BarChart,
@@ -75,7 +76,12 @@ function ProjectCard({ p, metric }: { p: ProjectKpi; metric: Metric }) {
 
 export function SitesComparisonPanel() {
   const [metric, setMetric] = useState<Metric>("openItems");
+  const { ville } = useCockpitFilter();
   const [expandedCity, setExpandedCity] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (ville) setExpandedCity(ville);
+  }, [ville]);
   const kpis = getSiteKpis();
 
   const sorted = [...kpis].sort((a, b) => b[metric] - a[metric]);
