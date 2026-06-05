@@ -18,6 +18,7 @@ import {
   YAxis,
 } from "recharts";
 import { moduleOperationalKpis, modules, monthlyTrend, siteBreakdown } from "@/lib/hse-data";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 
 type Period = "3m" | "6m" | "tout";
 
@@ -25,6 +26,7 @@ export function GlobalSynthesisCharts() {
   const [mounted, setMounted] = useState(false);
   const [period, setPeriod] = useState<Period>("6m");
   const [showN1, setShowN1] = useState(false);
+  const { ville } = useCockpitFilter();
 
   useEffect(() => {
     setMounted(true);
@@ -35,6 +37,11 @@ export function GlobalSynthesisCharts() {
     if (period === "6m") return monthlyTrend.slice(-6);
     return monthlyTrend;
   }, [period]);
+
+  const filteredSiteBreakdown = useMemo(
+    () => ville ? siteBreakdown.filter((s) => s.site === ville) : siteBreakdown,
+    [ville],
+  );
 
   const moduleRisk = useMemo(
     () =>
@@ -191,7 +198,7 @@ export function GlobalSynthesisCharts() {
           <div className="chart compact">
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={siteBreakdown} layout="vertical" barGap={6}>
+                <BarChart data={filteredSiteBreakdown} layout="vertical" barGap={6}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
                   <XAxis type="number" tickLine={false} axisLine={false} domain={[0, 100]} />
                   <YAxis type="category" dataKey="site" width={110} tickLine={false} axisLine={false} />

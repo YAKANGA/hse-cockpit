@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Clock } from "lucide-react";
 import { hseAlerts } from "@/lib/alerts-data";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 
 const SEVERITY_ORDER = { Critique: 0, Haute: 1, Moyenne: 2 };
 const SEVERITY_CLASS: Record<string, string> = {
@@ -10,12 +13,20 @@ const SEVERITY_CLASS: Record<string, string> = {
 };
 
 export function CockpitAlertsPanel() {
-  const top = [...hseAlerts]
+  const { ville, projet } = useCockpitFilter();
+
+  const filtered = hseAlerts.filter((a) => {
+    if (ville && a.site !== ville) return false;
+    if (projet && !a.projectName?.includes(projet) && a.site !== projet) return false;
+    return true;
+  });
+
+  const top = [...filtered]
     .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
     .slice(0, 4);
 
-  const criticalCount = hseAlerts.filter((a) => a.severity === "Critique").length;
-  const openCount = hseAlerts.filter((a) => a.status === "Ouvert").length;
+  const criticalCount = filtered.filter((a) => a.severity === "Critique").length;
+  const openCount = filtered.filter((a) => a.status === "Ouvert").length;
 
   return (
     <section className="cockpitBlock">

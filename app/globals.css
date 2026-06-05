@@ -2617,6 +2617,10 @@ th {
   grid-template-columns: repeat(3, minmax(180px, 1fr));
 }
 
+.recordsFilterBar {
+  grid-template-columns: minmax(200px, 1.5fr) repeat(3, minmax(140px, 1fr));
+}
+
 .moduleFilterKpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4446,10 +4450,80 @@ th {
 .echeGroupDot.echeSoon    { background: var(--blue);   }
 
 .echeGroupCount {
-  margin-left: auto;
   font-size: 11px;
   font-weight: 700;
   opacity: 0.75;
+}
+
+.echeGroupHeaderBtn {
+  width: 100%;
+  cursor: pointer;
+  justify-content: flex-start;
+}
+
+.echeGroupHeaderBtn:hover {
+  filter: brightness(0.95);
+}
+
+.echeGroupChevron {
+  margin-left: auto;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+}
+
+.echeGroupItems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.echeGroupCollapsed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.echeCollapsedDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.echeCollapsedDot.echeOverdue { background: var(--danger); }
+.echeCollapsedDot.echeUrgent  { background: var(--warn);   }
+.echeCollapsedDot.echeWeek    { background: #b45309;        }
+.echeCollapsedDot.echeSoon    { background: var(--blue);   }
+
+.echeCollapsedLabel {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.echeToggleAllBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.echeToggleAllBtn:hover {
+  background: var(--bg);
+  color: var(--ink);
+  border-color: var(--muted-2);
 }
 
 /* Row */
@@ -4595,6 +4669,23 @@ th {
   transition: box-shadow 0.15s;
 }
 
+.siteCard.clickable {
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+
+.siteCard.clickable:hover {
+  box-shadow: var(--shadow);
+  border-top-width: 4px;
+}
+
+.siteCard.expanded {
+  box-shadow: var(--shadow);
+  border-top-width: 4px;
+  background: color-mix(in srgb, var(--site-color, #64748b) 4%, var(--panel));
+}
+
 .siteCard:hover {
   box-shadow: var(--shadow);
 }
@@ -4684,9 +4775,128 @@ th {
   padding: 12px 8px 8px;
 }
 
+/* ── Drill-down projets ── */
+.projectsDrillDown {
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: fadeSlideUp 0.18s ease both;
+}
+
+.projectsDrillHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.projectsDrillSub {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.projectsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0;
+}
+
+.projectCard {
+  padding: 16px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 3px solid var(--project-color, #64748b);
+  background: var(--panel);
+  transition: background 0.12s;
+}
+
+.projectCard:hover { background: var(--bg); }
+
+.projectCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.projectCardType {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.projectCardStatus {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.projectCardStatus.active  { background: var(--primary-light); color: var(--primary); }
+.projectCardStatus.planned { background: var(--blue-light);    color: var(--blue); }
+.projectCardStatus.done    { background: var(--bg);            color: var(--muted); }
+
+.projectCardName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.projectCardKpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.projectCardKpiItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.projectCardKpiItem strong {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.projectCardKpiItem span {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* Echeancier: project context highlight */
+.echeContextProject {
+  font-weight: 600;
+  color: var(--ink-2) !important;
+}
+
 @media (max-width: 900px) {
   .sitesCardRow { grid-template-columns: repeat(2, 1fr); }
   .echeSummaryRow { grid-template-columns: repeat(2, 1fr); }
+  .projectsGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 540px) {
+  .sitesCardRow { grid-template-columns: 1fr; }
+  .projectCardKpis { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 540px) {
@@ -4955,4 +5165,241 @@ th {
   color: var(--muted);
   margin: 0;
   line-height: 1.5;
+}
+
+/* ── KPI cards génériques pour nouveaux modules ─────────────── */
+
+.trainingKpis,
+.causerieKpis,
+.medicalKpis,
+.acrKpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.duerpKpis,
+.consumptionKpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.planifKpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.trainingKpiCard,
+.causerieKpiCard,
+.duerpKpiCard,
+.medicalKpiCard,
+.acrKpiCard,
+.consumptionKpiCard,
+.planifKpiCard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 3px solid var(--train-color, var(--primary));
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.trainingKpiCard  { border-top-color: var(--train-color, var(--primary)); }
+.causerieKpiCard  { border-top-color: var(--caus-color,  var(--primary)); }
+.duerpKpiCard     { border-top-color: var(--duerp-color, var(--primary)); }
+.medicalKpiCard   { border-top-color: var(--med-color,   var(--primary)); }
+.acrKpiCard       { border-top-color: var(--acr-color,   var(--primary)); }
+.consumptionKpiCard { border-top-color: var(--cons-color, var(--primary)); }
+.planifKpiCard    { border-top-color: var(--planif-color, var(--primary)); }
+
+.trainingKpiCard:hover,
+.causerieKpiCard:hover,
+.duerpKpiCard:hover,
+.medicalKpiCard:hover { box-shadow: var(--shadow); transform: translateY(-1px); cursor: pointer; }
+
+.trainingKpiCard strong,
+.causerieKpiCard strong,
+.duerpKpiCard strong,
+.medicalKpiCard strong,
+.acrKpiCard strong,
+.consumptionKpiCard strong,
+.planifKpiCard strong { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+
+.trainingKpiCard span,
+.causerieKpiCard span,
+.duerpKpiCard span,
+.medicalKpiCard span,
+.acrKpiCard span,
+.consumptionKpiCard span,
+.planifKpiCard span { color: var(--muted); font-size: 12px; font-weight: 500; }
+
+.trainingKpiCard small,
+.causerieKpiCard small,
+.duerpKpiCard small,
+.medicalKpiCard small,
+.acrKpiCard small,
+.consumptionKpiCard small,
+.planifKpiCard small { color: var(--muted); font-size: 11px; }
+
+/* ── Executive Dashboard ────────────────────────────────────── */
+
+.execKpiGrid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.execKpiCard strong {
+  font-size: 22px !important;
+  white-space: nowrap;
+}
+
+.execKpiCard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.execKpiCard span {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.execKpiCard:hover { box-shadow: var(--shadow); }
+
+.execSynthese {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.execSyntheseCard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+/* ── Responsive breakpoints ─────────────────────────────────── */
+
+@media (max-width: 1400px) {
+  .execKpiGrid    { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .execKpiCard strong { font-size: 18px !important; }
+  .execSynthese   { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .duerpKpis,
+  .consumptionKpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1100px) {
+  .trainingKpis,
+  .causerieKpis,
+  .medicalKpis,
+  .acrKpis,
+  .planifKpis    { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .execKpiGrid   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .execSynthese  { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .duerpKpis,
+  .consumptionKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 700px) {
+  .trainingKpis,
+  .causerieKpis,
+  .medicalKpis,
+  .acrKpis,
+  .planifKpis,
+  .duerpKpis,
+  .consumptionKpis,
+  .execKpiGrid,
+  .execSynthese  { grid-template-columns: 1fr; }
+}
+
+/* ─── Cockpit Filters Bar ─────────────────────────────────────────────────── */
+.cockpitFiltersBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cockpitFilterSelect {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 10px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(4px);
+  color: #fff;
+}
+
+.cockpitFilterSelect select {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  min-width: 130px;
+}
+
+.cockpitFilterSelect select option {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
+.cockpitFilterIcon {
+  color: rgba(255,255,255,0.7);
+  flex-shrink: 0;
+}
+
+.cockpitFilterClear {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cockpitFilterClear:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+@media (max-width: 768px) {
+  .cockpitFiltersBar {
+    flex-wrap: wrap;
+  }
+  .cockpitFilterSelect select {
+    min-width: 100px;
+  }
 }

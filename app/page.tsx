@@ -1,9 +1,11 @@
 import { Database, Download, FileDown } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CockpitAlertsPanel } from "@/components/CockpitAlertsPanel";
+import { CockpitFiltersBar } from "@/components/CockpitFiltersBar";
 import { ConformiteGauge } from "@/components/ConformiteGauge";
 import { DashboardDensityToggle } from "@/components/DashboardDensityToggle";
 import { EcheancierPanel } from "@/components/EcheancierPanel";
+import { ExecutiveDashboard } from "@/components/ExecutiveDashboard";
 import { GlobalSynthesisCharts } from "@/components/GlobalSynthesisCharts";
 import { KpiSparkCard } from "@/components/KpiSparkCard";
 import { SitesComparisonPanel } from "@/components/SitesComparisonPanel";
@@ -23,6 +25,7 @@ export default function Home() {
             <h1>Cockpit HSE consolide</h1>
           </div>
           <div className="heroActions">
+            <CockpitFiltersBar />
             <DashboardDensityToggle />
             <a className="secondaryButton" href="/api/reports/global/docx">
               <FileDown size={16} /> Word
@@ -94,6 +97,7 @@ export default function Home() {
         </div>
 
         <CockpitAlertsPanel />
+        <ExecutiveDashboard />
         <GlobalSynthesisCharts />
         <EcheancierPanel />
         <SitesComparisonPanel />

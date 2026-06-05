@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Calendar, ChevronRight, Clock, MapPin, User } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Calendar, ChevronDown, ChevronRight, Clock, Eye, EyeOff, MapPin, User } from "lucide-react";
 import { getUpcomingEcheances, type EcheanceItem } from "@/lib/sites-data";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 
 type UrgencyKey = "overdue" | "urgent" | "week" | "soon";
 
@@ -34,27 +35,22 @@ function EcheanceRow({ item }: { item: EcheanceItem }) {
   const color = MODULE_COLORS[item.moduleId] ?? "#64748b";
   return (
     <a href={item.href} className={`echeRow ${URGENCY_CONFIG[item.urgency].cls}`}>
-      {/* Zone 1 — titre + module */}
       <div className="echeRowTitle">
         <span className="echeModuleChip" style={{ background: `${color}18`, color }}>
           {item.moduleName}
         </span>
         <span className="echeRowLabel">{item.label}</span>
       </div>
-
-      {/* Zone 2 — site + responsable */}
       <div className="echeRowContext">
-        <span className="echeContextItem">
+        <span className="echeContextItem echeContextProject">
           <MapPin size={11} />
-          {item.site}
+          {item.projectName}
         </span>
         <span className="echeContextItem">
           <User size={11} />
           {item.owner}
         </span>
       </div>
-
-      {/* Zone 3 — échéance */}
       <div className="echeRowRight">
         <CountdownChip item={item} />
         <span className="echeRowDate">{item.dueDate}</span>
@@ -65,8 +61,17 @@ function EcheanceRow({ item }: { item: EcheanceItem }) {
 }
 
 export function EcheancierPanel() {
-  const all = getUpcomingEcheances();
+  const cockpitFilter = useCockpitFilter();
+  const all = useMemo(() => {
+    const items = getUpcomingEcheances();
+    return items.filter((i) => {
+      if (cockpitFilter.ville && (i as EcheanceItem & { site?: string }).site !== cockpitFilter.ville) return false;
+      if (cockpitFilter.projet && !i.projectName?.includes(cockpitFilter.projet)) return false;
+      return true;
+    });
+  }, [cockpitFilter.ville, cockpitFilter.projet]);
   const [filter, setFilter] = useState<"all" | UrgencyKey>("all");
+  const [collapsed, setCollapsed] = useState<Set<UrgencyKey>>(new Set());
 
   const counts: Record<UrgencyKey, number> = {
     overdue: all.filter((i) => i.urgency === "overdue").length,
@@ -80,6 +85,25 @@ export function EcheancierPanel() {
     (u) => (filter === "all" ? counts[u] > 0 : filter === u),
   );
 
+  const allCollapsed = groups.every((u) => collapsed.has(u));
+
+  function toggleGroup(u: UrgencyKey) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(u)) next.delete(u);
+      else next.add(u);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allCollapsed) {
+      setCollapsed(new Set());
+    } else {
+      setCollapsed(new Set(groups));
+    }
+  }
+
   return (
     <section className="cockpitBlock echeancierBlock">
       <div className="sectionTitle">
@@ -90,10 +114,20 @@ export function EcheancierPanel() {
           </h2>
           <p>Enregistrements et alertes dont l'echeance approche ou est depassee.</p>
         </div>
-        <span className="echeTotalBadge">{all.length} element{all.length > 1 ? "s" : ""}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            className="echeToggleAllBtn"
+            onClick={toggleAll}
+            title={allCollapsed ? "Tout afficher" : "Tout masquer"}
+          >
+            {allCollapsed ? <Eye size={14} /> : <EyeOff size={14} />}
+            {allCollapsed ? "Tout afficher" : "Tout masquer"}
+          </button>
+          <span className="echeTotalBadge">{all.length} element{all.length > 1 ? "s" : ""}</span>
+        </div>
       </div>
 
-      {/* ── Pills compactes ── */}
+      {/* ── Pills ── */}
       <div className="echePillRow">
         {(["overdue", "urgent", "week", "soon"] as UrgencyKey[]).map((u) => {
           const cfg = URGENCY_CONFIG[u];
@@ -126,18 +160,45 @@ export function EcheancierPanel() {
               ? filtered.filter((i) => i.urgency === u)
               : filtered;
             if (!items.length) return null;
+            const isCollapsed = collapsed.has(u);
+
             return (
               <div key={u} className="echeGroup">
-                {filter === "all" && (
-                  <div className={`echeGroupHeader ${URGENCY_CONFIG[u].cls}`}>
+                {filter === "all" ? (
+                  <button
+                    className={`echeGroupHeader echeGroupHeaderBtn ${URGENCY_CONFIG[u].cls}`}
+                    onClick={() => toggleGroup(u)}
+                    aria-expanded={!isCollapsed}
+                  >
                     <span className={`echeGroupDot ${URGENCY_CONFIG[u].cls}`} />
                     {URGENCY_CONFIG[u].label}
                     <span className="echeGroupCount">{items.length}</span>
+                    <span className="echeGroupChevron">
+                      {isCollapsed
+                        ? <ChevronRight size={13} />
+                        : <ChevronDown size={13} />}
+                    </span>
+                  </button>
+                ) : null}
+
+                {!isCollapsed && (
+                  <div className="echeGroupItems">
+                    {items.map((item) => (
+                      <EcheanceRow key={item.id} item={item} />
+                    ))}
                   </div>
                 )}
-                {items.map((item) => (
-                  <EcheanceRow key={item.id} item={item} />
-                ))}
+
+                {isCollapsed && filter === "all" && (
+                  <div className="echeGroupCollapsed">
+                    {items.map((item) => (
+                      <span key={item.id} className={`echeCollapsedDot ${URGENCY_CONFIG[u].cls}`} title={item.label} />
+                    ))}
+                    <span className="echeCollapsedLabel">
+                      {items.length} element{items.length > 1 ? "s" : ""} masque{items.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
