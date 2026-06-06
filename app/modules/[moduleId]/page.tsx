@@ -18,8 +18,16 @@ import { EpiDashboardPanel } from "@/components/EpiDashboardPanel";
 import { EventsSeverityPanel } from "@/components/EventsSeverityPanel";
 import { IndicateursTFTGDashboard } from "@/components/IndicateursTFTGDashboard";
 import { InspectionsConformitePanel } from "@/components/InspectionsConformitePanel";
+import { AcrPanel } from "@/components/AcrPanel";
+import { CauseriesPanel } from "@/components/CauseriesPanel";
+import { ConsumptionPanel } from "@/components/ConsumptionPanel";
+import { DuerpPanel } from "@/components/DuerpPanel";
 import { EnvironmentImpactsPanel } from "@/components/EnvironmentImpactsPanel";
+import { MedicalPanel } from "@/components/MedicalPanel";
 import { PermisStatusPanel } from "@/components/PermisStatusPanel";
+import { PlanificationHsePanel } from "@/components/PlanificationHsePanel";
+import { TrainingHabilitationsPanel } from "@/components/TrainingHabilitationsPanel";
+import { VbgDashboardPanel } from "@/components/VbgDashboardPanel";
 import { ModuleDashboardCharts } from "@/components/ModuleDashboardCharts";
 import { ModuleImportForm } from "@/components/ModuleImportForm";
 import { ModuleRecordsExplorer } from "@/components/ModuleRecordsExplorer";
@@ -152,6 +160,14 @@ export default async function ModulePage({
       {module.id === "permits"      ? <PermisStatusPanel />             : null}
       {module.id === "ppe"          ? <EpiDashboardPanel />             : null}
       {module.id === "environment"  ? <EnvironmentImpactsPanel />       : null}
+      {module.id === "training"     ? <TrainingHabilitationsPanel />    : null}
+      {module.id === "causeries"    ? <CauseriesPanel />                : null}
+      {module.id === "duerp"        ? <DuerpPanel />                    : null}
+      {module.id === "medical"      ? <MedicalPanel />                  : null}
+      {module.id === "acr"          ? <AcrPanel />                      : null}
+      {module.id === "consumption"  ? <ConsumptionPanel />              : null}
+      {module.id === "planification"? <PlanificationHsePanel />         : null}
+      {module.id === "vbg"          ? <VbgDashboardPanel />             : null}
 
       <ModuleRecordsExplorer moduleId={module.id} records={records} tenantId={tenantId} />
 
