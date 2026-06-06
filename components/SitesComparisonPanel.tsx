@@ -2,17 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useCockpitFilter } from "@/lib/use-cockpit-filter";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  LabelList,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { getSiteKpis, getProjectKpisForCity, type SiteKpi, type ProjectKpi } from "@/lib/sites-data";
 import { ChevronDown, ChevronRight, MapPin, Users } from "lucide-react";
 
@@ -76,28 +65,38 @@ function ProjectCard({ p, metric }: { p: ProjectKpi; metric: Metric }) {
 
 export function SitesComparisonPanel() {
   const [metric, setMetric] = useState<Metric>("openItems");
-  const { ville } = useCockpitFilter();
+  const { ville: filtreVille, projet: filtreProjet } = useCockpitFilter();
   const [expandedCity, setExpandedCity] = useState<string | null>(null);
 
+  // Sync manual expansion with cockpit filter
   useEffect(() => {
-    if (ville) setExpandedCity(ville);
-  }, [ville]);
-  const kpis = getSiteKpis();
+    setExpandedCity(filtreVille || null);
+  }, [filtreVille]);
 
+  const kpis = getSiteKpis();
   const sorted = [...kpis].sort((a, b) => b[metric] - a[metric]);
-  const chartData = sorted.map((s) => ({
+
+  // When a city is filtered, show only that city; otherwise show all
+  const visibleKpis = filtreVille ? sorted.filter((s) => s.site === filtreVille) : sorted;
+  const chartData = visibleKpis.map((s) => ({
     site: s.site,
     value: s[metric],
     fill: SITE_COLORS[s.site] ?? "#64748b",
   }));
-  const maxVal = Math.max(...kpis.map((k) => k[metric]), 1);
+  const maxVal = Math.max(...visibleKpis.map((k) => k[metric]), 1);
+
+  const drillCity = expandedCity ?? (filtreVille || null);
 
   return (
     <section className="cockpitBlock sitesBlock">
       <div className="sectionTitle">
         <div>
           <h2>Villes &amp; Projets HSE</h2>
-          <p>Performance HSE par ville — cliquer sur une ville pour voir ses projets.</p>
+          <p>
+            {filtreVille
+              ? `Vue filtrée — ${filtreVille}${filtreProjet ? ` › ${filtreProjet}` : ""}`
+              : "Performance HSE par ville — cliquer sur une ville pour voir ses projets."}
+          </p>
         </div>
         <div className="periodToggle">
           {(Object.keys(METRIC_LABELS) as Metric[]).map((m) => (
@@ -108,13 +107,13 @@ export function SitesComparisonPanel() {
         </div>
       </div>
 
-      {/* ── Cartes villes cliquables ── */}
-      <div className="sitesCardRow">
-        {sorted.map((s, idx) => {
+      {/* ── Cartes villes ── */}
+      <div className={`sitesCardRow${filtreVille ? " sitesCardRowFiltered" : ""}`}>
+        {visibleKpis.map((s, idx) => {
           const color = SITE_COLORS[s.site] ?? "#64748b";
           const val = s[metric];
           const pct = Math.round((val / maxVal) * 100);
-          const isExpanded = expandedCity === s.site;
+          const isExpanded = drillCity === s.site;
 
           return (
             <button
@@ -129,7 +128,7 @@ export function SitesComparisonPanel() {
                   {s.site}
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span className="siteCardRank">#{idx + 1}</span>
+                  {!filtreVille && <span className="siteCardRank">#{idx + 1}</span>}
                   {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </div>
               </div>
@@ -159,16 +158,21 @@ export function SitesComparisonPanel() {
       </div>
 
       {/* ── Drill-down projets ── */}
-      {expandedCity && (
+      {drillCity && (
         <div className="projectsDrillDown">
           <div className="projectsDrillHeader">
-            <MapPin size={14} style={{ color: SITE_COLORS[expandedCity] }} />
-            <strong style={{ color: SITE_COLORS[expandedCity] }}>{expandedCity}</strong>
+            <MapPin size={14} style={{ color: SITE_COLORS[drillCity] }} />
+            <strong style={{ color: SITE_COLORS[drillCity] }}>{drillCity}</strong>
             <span className="projectsDrillSub">— Projets actifs et leurs indicateurs HSE</span>
           </div>
           <div className="projectsGrid">
-            {getProjectKpisForCity(expandedCity).map((p) => (
-              <ProjectCard key={p.projectId} p={p} metric={metric} />
+            {getProjectKpisForCity(drillCity).map((p) => (
+              <div
+                key={p.projectId}
+                className={filtreProjet && p.projectId === filtreProjet ? "projectCardHighlighted" : ""}
+              >
+                <ProjectCard p={p} metric={metric} />
+              </div>
             ))}
           </div>
         </div>
