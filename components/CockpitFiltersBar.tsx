@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown, FolderOpen, MapPin, X } from "lucide-react";
 import {
   ALL_CITIES,
@@ -8,6 +8,8 @@ import {
   readCockpitFilter,
   writeCockpitFilter,
 } from "@/lib/use-cockpit-filter";
+
+type DropdownPos = { top: number; left: number; minWidth: number };
 
 function MultiSelectDropdown({
   label,
@@ -25,34 +27,54 @@ function MultiSelectDropdown({
   renderLabel?: (selected: string[]) => string;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<DropdownPos | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  // Recalculate position whenever dropdown opens
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    setPos({
+      top: rect.bottom + 6,
+      left: rect.left,
+      minWidth: Math.max(rect.width, 200),
+    });
+  }, [open]);
 
   useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    function onOutside(e: MouseEvent) {
+      if (
+        dropRef.current?.contains(e.target as Node) ||
+        btnRef.current?.contains(e.target as Node)
+      ) return;
+      setOpen(false);
     }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    function onScroll() { setOpen(false); }
+    document.addEventListener("mousedown", onOutside);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      window.removeEventListener("scroll", onScroll, true);
+    };
   }, []);
 
   function toggle(value: string) {
-    const next = selected.includes(value)
+    onChange(selected.includes(value)
       ? selected.filter((v) => v !== value)
-      : [...selected, value];
-    onChange(next);
+      : [...selected, value]);
   }
 
   const displayLabel = renderLabel
     ? renderLabel(selected)
-    : selected.length === 0
-      ? label
-      : selected.length === 1
-        ? selected[0]
-        : `${selected.length} sélectionnés`;
+    : selected.length === 0 ? label
+    : selected.length === 1 ? selected[0]
+    : `${selected.length} sélectionnés`;
 
   return (
-    <div className="cockpitMultiSelect" ref={ref}>
+    <>
       <button
+        ref={btnRef}
         type="button"
         className={`cockpitMultiSelectBtn${selected.length ? " hasSelection" : ""}`}
         onClick={() => setOpen((o) => !o)}
@@ -66,8 +88,17 @@ function MultiSelectDropdown({
         <ChevronDown size={12} className={`cockpitFilterChevron${open ? " rotated" : ""}`} />
       </button>
 
-      {open && (
-        <div className="cockpitMultiDropdown">
+      {open && pos && (
+        <div
+          ref={dropRef}
+          className="cockpitMultiDropdown"
+          style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.minWidth }}
+        >
+          {options.length === 0 && (
+            <p style={{ padding: "8px 12px", fontSize: 13, color: "var(--muted)", margin: 0 }}>
+              Aucun élément disponible
+            </p>
+          )}
           {options.map((opt) => {
             const checked = selected.includes(opt.value);
             return (
@@ -83,17 +114,13 @@ function MultiSelectDropdown({
             );
           })}
           {selected.length > 0 && (
-            <button
-              type="button"
-              className="cockpitMultiClearAll"
-              onClick={() => onChange([])}
-            >
+            <button type="button" className="cockpitMultiClearAll" onClick={() => onChange([])}>
               <X size={11} /> Tout désélectionner
             </button>
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -108,10 +135,9 @@ export function CockpitFiltersBar() {
   }, []);
 
   function onVillesChange(next: string[]) {
+    const available = getProjectsForCities(next).map((p) => p.id);
+    const nextProjets = projets.filter((id) => available.includes(id));
     setVilles(next);
-    // Reset projets that belong to deselected cities
-    const availableProjects = getProjectsForCities(next).map((p) => p.id);
-    const nextProjets = projets.filter((id) => availableProjects.includes(id));
     setProjets(nextProjets);
     writeCockpitFilter({ villes: next, projets: nextProjets });
   }
@@ -133,8 +159,6 @@ export function CockpitFiltersBar() {
     label: `${p.shortName} (${p.city})`,
   }));
 
-  const hasFilter = villes.length > 0 || projets.length > 0;
-
   return (
     <div className="cockpitFiltersBar">
       <MultiSelectDropdown
@@ -144,10 +168,8 @@ export function CockpitFiltersBar() {
         selected={villes}
         onChange={onVillesChange}
         renderLabel={(sel) =>
-          sel.length === 0 ? "Toutes les villes" :
-          sel.length === ALL_CITIES.length ? "Toutes les villes" :
-          sel.length === 1 ? sel[0] :
-          `${sel.length} villes`
+          sel.length === 0 || sel.length === ALL_CITIES.length ? "Toutes les villes" :
+          sel.length === 1 ? sel[0] : `${sel.length} villes`
         }
       />
 
@@ -159,13 +181,13 @@ export function CockpitFiltersBar() {
         onChange={onProjetsChange}
         renderLabel={(sel) =>
           sel.length === 0 ? "Tous les projets" :
-          sel.length === 1 ? projetOptions.find((o) => o.value === sel[0])?.label?.split(" (")[0] ?? "1 projet" :
+          sel.length === 1 ? (projetOptions.find((o) => o.value === sel[0])?.label?.split(" (")[0] ?? "1 projet") :
           `${sel.length} projets`
         }
       />
 
-      {hasFilter && (
-        <button type="button" onClick={clearAll} className="cockpitFilterClear" title="Réinitialiser tous les filtres">
+      {(villes.length > 0 || projets.length > 0) && (
+        <button type="button" onClick={clearAll} className="cockpitFilterClear">
           <X size={13} /> Effacer
         </button>
       )}
