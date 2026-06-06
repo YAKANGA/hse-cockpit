@@ -30,44 +30,55 @@ function MultiSelectDropdown({
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
   const [mounted, setMounted] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
+  const btnRef  = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
   useLayoutEffect(() => {
     if (!open || !btnRef.current) { setPos(null); return; }
     const r = btnRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 8, left: r.left, width: Math.max(r.width, 220) });
+    setPos({ top: r.bottom + 8, left: r.left, width: Math.max(r.width, 240) });
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    function close(e: MouseEvent) {
-      if (btnRef.current?.contains(e.target as Node)) return;
+    function onOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      // Keep open if click is inside the button OR inside the portal dropdown
+      if (btnRef.current?.contains(target)) return;
+      if (dropRef.current?.contains(target)) return;
       setOpen(false);
     }
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    setTimeout(() => document.addEventListener("mousedown", close), 0);
+    document.addEventListener("mousedown", onOutside);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", close);
+      document.removeEventListener("mousedown", onOutside);
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
 
   function toggle(value: string) {
-    onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
+    onChange(selected.includes(value)
+      ? selected.filter((v) => v !== value)
+      : [...selected, value]);
   }
 
-  const btnLabel = renderLabel ? renderLabel(selected) : selected.length === 0 ? label : selected.length === 1 ? selected[0] : `${selected.length} sélectionnés`;
+  const btnLabel = renderLabel
+    ? renderLabel(selected)
+    : selected.length === 0 ? label
+    : selected.length === 1 ? selected[0]
+    : `${selected.length} sélectionnés`;
 
-  const dropdown = mounted && open && pos ? createPortal(
+  const dropdownContent = (
     <div
+      ref={dropRef}
       style={{
         position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        minWidth: pos.width,
+        top: pos?.top ?? 0,
+        left: pos?.left ?? 0,
+        minWidth: pos?.width ?? 240,
         zIndex: 99999,
         background: "var(--panel, #fff)",
         border: "1px solid var(--line, #e2e8f0)",
@@ -75,7 +86,7 @@ function MultiSelectDropdown({
         boxShadow: "0 16px 48px rgba(0,0,0,0.18)",
         padding: 6,
         display: "flex",
-        flexDirection: "column",
+        flexDirection: "column" as const,
         gap: 2,
       }}
     >
@@ -95,13 +106,14 @@ function MultiSelectDropdown({
               fontSize: 13, fontWeight: checked ? 600 : 400,
               color: checked ? "var(--primary, #0f766e)" : "var(--ink, #1e293b)",
               background: checked ? "var(--primary-faint, #f0fdf4)" : "transparent",
+              userSelect: "none",
             }}
           >
             <input
               type="checkbox"
               checked={checked}
               onChange={() => toggle(opt.value)}
-              style={{ width: 15, height: 15, accentColor: "var(--primary, #0f766e)", cursor: "pointer", flexShrink: 0 }}
+              style={{ width: 15, height: 15, accentColor: "#0f766e", cursor: "pointer", flexShrink: 0 }}
             />
             {opt.label}
           </label>
@@ -122,9 +134,8 @@ function MultiSelectDropdown({
           <X size={11} /> Tout désélectionner
         </button>
       )}
-    </div>,
-    document.body
-  ) : null;
+    </div>
+  );
 
   return (
     <>
@@ -140,7 +151,8 @@ function MultiSelectDropdown({
         {selected.length > 0 && <span className="cockpitFilterBadge">{selected.length}</span>}
         <ChevronDown size={12} className={`cockpitFilterChevron${open ? " rotated" : ""}`} />
       </button>
-      {dropdown}
+
+      {mounted && open && pos && createPortal(dropdownContent, document.body)}
     </>
   );
 }
@@ -195,12 +207,21 @@ export function CockpitFiltersBar() {
         onChange={onProjetsChange}
         renderLabel={(sel) =>
           !sel.length ? "Tous les projets" :
-          sel.length === 1 ? (projetOptions.find((o) => o.value === sel[0])?.label?.split(" — ")[0] ?? "1 projet") :
-          `${sel.length} projets`
+          sel.length === 1
+            ? (projetOptions.find((o) => o.value === sel[0])?.label?.split(" — ")[0] ?? "1 projet")
+            : `${sel.length} projets`
         }
       />
       {(villes.length > 0 || projets.length > 0) && (
-        <button type="button" onClick={() => { setVilles([]); setProjets([]); writeCockpitFilter({ villes: [], projets: [] }); }} className="cockpitFilterClear">
+        <button
+          type="button"
+          className="cockpitFilterClear"
+          onClick={() => {
+            setVilles([]);
+            setProjets([]);
+            writeCockpitFilter({ villes: [], projets: [] });
+          }}
+        >
           <X size={13} /> Effacer
         </button>
       )}
