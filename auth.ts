@@ -34,11 +34,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        // Dynamic import keeps better-sqlite3 out of the Edge bundle
-        const { findUserByEmail } = await import("@/lib/db");
+        // Dynamic import keeps native modules out of the Edge bundle.
+        // db-auto selects PostgreSQL (DATABASE_URL set) or SQLite automatically.
+        const { findUserByEmail } = await import("@/lib/db-auto");
         const { rolePermissions }  = await import("@/lib/permissions");
 
-        const user = findUserByEmail(String(credentials.email));
+        const user = await findUserByEmail(String(credentials.email));
         if (!user) return null;
 
         const valid = await bcrypt.compare(String(credentials.password), user.password);

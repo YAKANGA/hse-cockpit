@@ -4,6 +4,7 @@ import { getTemplate } from "@/lib/hse-templates";
 import { modules } from "@/lib/hse-data";
 import { recordValidatedImport } from "@/lib/import-store";
 import { getTenant } from "@/lib/tenant-analytics";
+import { importLimiter, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
 import * as XLSX from "xlsx";
 
 export const runtime = "nodejs";
@@ -17,6 +18,9 @@ type ImportPayload = {
 };
 
 export async function POST(request: Request) {
+  const rl = importLimiter(getClientIp(request));
+  if (!rl.ok) return rateLimitResponse(rl);
+
   const authorization = requirePermission(request, "module:import");
   if (authorization.response) {
     return authorization.response;
@@ -136,11 +140,26 @@ export async function POST(request: Request) {
       severity: "Info",
     });
 
-    // Persist to SQLite — dynamic import keeps better-sqlite3 out of client bundles
+    // Send email notification (non-blocking)
+    void (async () => {
+      try {
+        const { sendEmail, emailImportValide } = await import("@/lib/email");
+        const adminEmail = process.env.NOTIFICATION_EMAIL;
+        if (adminEmail) {
+          await sendEmail({
+            to: adminEmail,
+            subject: `✅ Import validé — ${module?.shortName ?? template.moduleId}`,
+            html: emailImportValide({ module: module?.shortName ?? template.moduleId, filename: payload.filename ?? "import.xlsx", rows: rows.length, author: session.name, errors: 0 }),
+          });
+        }
+      } catch { /* non-fatal */ }
+    })();
+
+    // Persist to DB (SQLite or PostgreSQL via db-auto)
     try {
-      const { insertImportHistory, insertImportRecords } = await import("@/lib/db");
+      const db = await import("@/lib/db-auto");
       const importId = integration.historyItem.id;
-      insertImportHistory({
+      await db.insertImportHistory({
         id: importId,
         tenant_id: tenantId,
         tenant_name: tenant?.name ?? session.tenantName ?? "Plateforme",
@@ -154,7 +173,7 @@ export async function POST(request: Request) {
         author: session.name,
         errors: "[]",
       });
-      insertImportRecords(importId, template.moduleId, tenantId, rows);
+      await db.insertImportRecords(importId, template.moduleId, tenantId, rows);
     } catch {
       // Non-fatal — in-memory store already updated
     }

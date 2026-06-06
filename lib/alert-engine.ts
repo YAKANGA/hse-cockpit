@@ -132,6 +132,8 @@ function makeAlert(
   title: string,
   recommendation: string,
   site = "Tous sites",
+  projectId = "",
+  projectName = "Tous projets",
 ): HseAlert {
   return {
     id,
@@ -140,6 +142,8 @@ function makeAlert(
     moduleId: thr.moduleId,
     moduleName: thr.moduleName,
     site,
+    projectId,
+    projectName,
     title,
     source: `Seuil automatique — ${thr.label}`,
     severity: thr.severity,

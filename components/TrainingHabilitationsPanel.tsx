@@ -1,0 +1,271 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import { HABILITATIONS, getTrainingSummary, type StatutHabilitation } from "@/lib/training-data";
+import { AlertTriangle, CheckCircle2, Clock, RefreshCw } from "lucide-react";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
+import { isoDateInRange } from "@/lib/date-utils";
+
+const STATUT_COLOR: Record<StatutHabilitation, string> = {
+  "Valide":        "#16a34a",
+  "A renouveler":  "#d97706",
+  "Expire":        "#dc2626",
+  "En cours":      "#2563eb",
+};
+
+const TYPES  = ["Tous", "Formation", "Habilitation", "Attestation", "Recyclage"];
+const STATUTS: (StatutHabilitation | "Tous")[] = ["Tous", "Valide", "A renouveler", "Expire", "En cours"];
+
+const today = new Date().toISOString().slice(0, 10);
+
+function daysUntil(dateStr: string | null): number {
+  if (!dateStr) return 9999;
+  return Math.round((new Date(dateStr).getTime() - new Date(today).getTime()) / 86400000);
+}
+
+export function TrainingHabilitationsPanel() {
+  const summary = useMemo(() => getTrainingSummary(), []);
+  const [type,   setType]   = useState("Tous");
+  const [statut, setStatut] = useState<StatutHabilitation | "Tous">("Tous");
+
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
+
+  const baseData = useMemo(() =>
+    HABILITATIONS.filter((h) =>
+      (!activeSites || activeSites.includes(h.site)) &&
+      isoDateInRange(h.date_formation, globalFilter.dateDebut, globalFilter.dateFin)
+    ),
+  [activeSites, globalFilter.dateDebut, globalFilter.dateFin]);
+
+  const filtered = useMemo(() => baseData.filter((h) =>
+    (type === "Tous" || h.type === type) &&
+    (statut === "Tous" || h.statut === statut)
+  ), [baseData, type, statut]);
+
+  // Stacked bar per site (from baseData)
+  const bySiteStatut = useMemo(() => {
+    const m: Record<string, Record<StatutHabilitation, number>> = {};
+    baseData.forEach((h) => {
+      if (!m[h.site]) m[h.site] = { Valide: 0, "A renouveler": 0, Expire: 0, "En cours": 0 };
+      m[h.site][h.statut]++;
+    });
+    return Object.entries(m).map(([s, v]) => ({ site: s, ...v }));
+  }, [baseData]);
+
+  // Pie data (filtered)
+  const byStatut = useMemo(() => {
+    const m: Record<string, number> = {};
+    filtered.forEach((h) => { m[h.statut] = (m[h.statut] ?? 0) + 1; });
+    return Object.entries(m).map(([name, value]) => ({ name, value }));
+  }, [filtered]);
+
+  // Upcoming expirations (sorted ascending, <90 days or expired)
+  const urgentList = useMemo(() =>
+    [...baseData]
+      .filter((h) => h.date_expiration !== null)
+      .map((h) => ({ ...h, jours: daysUntil(h.date_expiration) }))
+      .filter((h) => h.jours <= 90)
+      .sort((a, b) => a.jours - b.jours)
+      .slice(0, 8),
+  [baseData]);
+
+  const valides = baseData.filter((h) => h.statut === "Valide").length;
+  const tauxAJour = baseData.length > 0 ? Math.round((valides / baseData.length) * 100) : 0;
+
+  const filterLabel = activeSites
+    ? activeSites.length === 1 ? activeSites[0] : `${activeSites.length} sites`
+    : "Tous les sites";
+
+  return (
+    <section className="sectionBlock">
+      <div className="sectionTitle">
+        <div>
+          <h2>Formations &amp; Habilitations du personnel</h2>
+          <p>{baseData.length}/{summary.total} habilitations — {tauxAJour}% à jour — {summary.expire} expirées — <strong>{filterLabel}</strong>.</p>
+        </div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+          <select value={type} onChange={(e) => setType(e.target.value)} style={{ padding:"4px 8px", borderRadius:6, border:"1px solid var(--line)", fontSize:12 }}>
+            {TYPES.map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="trainingKpis">
+        {([
+          ["Valide",        summary.valide,       CheckCircle2, "#16a34a"],
+          ["A renouveler",  summary.aRenouveler,  Clock,        "#d97706"],
+          ["Expire",        summary.expire,       AlertTriangle,"#dc2626"],
+          ["En cours",      summary.enCours,      RefreshCw,    "#2563eb"],
+        ] as [string, number, React.ElementType, string][]).map(([label, count, Icon, color]) => (
+          <div key={label} className="trainingKpiCard"
+            onClick={() => setStatut(statut === label ? "Tous" : label as StatutHabilitation)}
+            role="button" tabIndex={0} style={{ cursor:"pointer", ...({"--train-color": color} as React.CSSProperties) }}>
+            <Icon size={20} style={{ color }} />
+            <strong style={{ fontSize:28, fontWeight:700, color }}>{count}</strong>
+            <span style={{ fontSize:12 }}>{label}</span>
+            <div style={{ width:"100%", height:3, background:"var(--line)", borderRadius:99, marginTop:2 }}>
+              <div style={{ width:`${Math.round((count / summary.total) * 100)}%`, height:"100%", background:color, borderRadius:99 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Global compliance bar */}
+      <div style={{ margin:"14px 0 0", padding:"12px 16px", background:"var(--bg)", borderRadius:10, border:"1px solid var(--line)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+          <span style={{ color:"var(--muted)", fontWeight:500 }}>Taux d'habilitations à jour</span>
+          <span style={{ fontWeight:700, color: tauxAJour >= 80 ? "#16a34a" : tauxAJour >= 60 ? "#d97706" : "#dc2626" }}>{tauxAJour}%</span>
+        </div>
+        <div style={{ height:8, background:"var(--line)", borderRadius:99, overflow:"hidden" }}>
+          <div style={{ display:"flex", height:"100%", overflow:"hidden", borderRadius:99 }}>
+            <div style={{ width:`${tauxAJour}%`, background:"linear-gradient(90deg,#16a34a,#0f766e)", transition:"width .5s" }} />
+            <div style={{ width:`${baseData.length > 0 ? Math.round((baseData.filter(h=>h.statut==="A renouveler").length / baseData.length) * 100) : 0}%`, background:"#d97706" }} />
+            <div style={{ flex:1, background:"#dc2626" }} />
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:16, marginTop:6, fontSize:11, flexWrap:"wrap" }}>
+          <span style={{ color:"#16a34a" }}>● Valides : {valides}</span>
+          <span style={{ color:"#d97706" }}>● À renouveler : {baseData.filter(h=>h.statut==="A renouveler").length}</span>
+          <span style={{ color:"#dc2626" }}>● Expirées : {baseData.filter(h=>h.statut==="Expire").length}</span>
+          <span style={{ color:"#2563eb" }}>● En cours : {baseData.filter(h=>h.statut==="En cours").length}</span>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display:"flex", gap:6, margin:"14px 0 0", flexWrap:"wrap" }}>
+        {STATUTS.map((s) => (
+          <button key={s} type="button" className={statut === s ? "periodBtn active" : "periodBtn"} onClick={() => setStatut(s)}>{s}</button>
+        ))}
+        <span style={{ fontSize:12, color:"var(--muted)", alignSelf:"center", marginLeft:6 }}>{filtered.length} ligne{filtered.length > 1 ? "s" : ""}</span>
+      </div>
+
+      {/* Charts row */}
+      <div className="dashboardGrid" style={{ marginTop:18 }}>
+        {/* Stacked site bar */}
+        <article className="panel">
+          <div className="panelHeader"><div><h2>Conformité par site</h2><p>Répartition des statuts d'habilitation par localisation.</p></div></div>
+          <div className="chart compact">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={bySiteStatut} barSize={28}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="site" tick={{ fontSize:11 }} tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ borderRadius:8, fontSize:12, border:"1px solid var(--line)" }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:11 }} />
+                <Bar dataKey="Valide"       name="Valide"        fill="#16a34a" stackId="a" />
+                <Bar dataKey="En cours"     name="En cours"      fill="#2563eb" stackId="a" />
+                <Bar dataKey="A renouveler" name="À renouveler"  fill="#d97706" stackId="a" />
+                <Bar dataKey="Expire"       name="Expirée"       fill="#dc2626" stackId="a" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </article>
+
+        {/* Urgency list */}
+        <article className="panel">
+          <div className="panelHeader"><div><h2>Alertes — expirations imminentes</h2><p>Habilitations expirant dans les 90 prochains jours ou déjà expirées.</p></div></div>
+          <div style={{ padding:"8px 0", maxHeight:280, overflowY:"auto" }}>
+            {urgentList.length === 0 ? (
+              <div style={{ padding:"24px 16px", textAlign:"center", color:"var(--muted)", fontSize:13 }}>
+                <CheckCircle2 size={32} style={{ color:"#16a34a", margin:"0 auto 8px", display:"block" }} />
+                Aucune habilitation à renouveler dans les 90 prochains jours.
+              </div>
+            ) : urgentList.map((h) => {
+              const expired = h.jours < 0;
+              const urgent  = h.jours <= 15;
+              const color   = expired ? "#dc2626" : urgent ? "#ea580c" : "#d97706";
+              return (
+                <div key={h.id} style={{ padding:"8px 16px", borderBottom:"1px solid var(--line)", display:"flex", justifyContent:"space-between", alignItems:"center", gap:12 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{h.nom} {h.prenom}</div>
+                    <div style={{ fontSize:11, color:"var(--muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{h.titre} — {h.site}</div>
+                  </div>
+                  <div style={{ textAlign:"right", flexShrink:0 }}>
+                    <div style={{ fontSize:12, fontWeight:700, color }}>{expired ? `Exp. il y a ${-h.jours}j` : `Dans ${h.jours}j`}</div>
+                    <div style={{ fontSize:11, color:"var(--muted)" }}>{h.date_expiration}</div>
+                  </div>
+                  <div style={{ width:6, height:36, background:color, borderRadius:3, flexShrink:0 }} />
+                </div>
+              );
+            })}
+          </div>
+        </article>
+      </div>
+
+      {/* Donut + site bar */}
+      <div className="dashboardGrid" style={{ marginTop:18 }}>
+        <article className="panel">
+          <div className="panelHeader"><div><h2>Répartition par statut (filtrée)</h2><p>{filtered.length} habilitation{filtered.length > 1 ? "s" : ""} affichée{filtered.length > 1 ? "s" : ""}.</p></div></div>
+          <div className="chart compact" style={{ position:"relative" }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={byStatut} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={85} innerRadius={52}>
+                  {byStatut.map((e) => <Cell key={e.name} fill={STATUT_COLOR[e.name as StatutHabilitation] ?? "#94a3b8"} />)}
+                </Pie>
+                <Tooltip contentStyle={{ borderRadius:8, fontSize:12 }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:11 }} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-60%)", textAlign:"center", pointerEvents:"none" }}>
+              <div style={{ fontSize:22, fontWeight:800, color: tauxAJour >= 80 ? "#16a34a" : "#d97706" }}>{tauxAJour}%</div>
+              <div style={{ fontSize:10, color:"var(--muted)" }}>à jour</div>
+            </div>
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="panelHeader"><div><h2>Volume par site</h2><p>Nombre total d'habilitations par localisation.</p></div></div>
+          <div className="chart compact">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={bySiteStatut.map((s) => ({ ...s, total: (s["Valide"] ?? 0) + (s["A renouveler"] ?? 0) + (s["Expire"] ?? 0) + (s["En cours"] ?? 0) }))} barSize={36}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="site" tick={{ fontSize:11 }} tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ borderRadius:8, fontSize:12 }} />
+                <Bar dataKey="total" name="Habilitations" fill="#15803d" radius={[6,6,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </article>
+      </div>
+
+      {/* Table */}
+      <article className="panel" style={{ marginTop:18 }}>
+        <div className="panelHeader"><div><h2>Registre des habilitations</h2><p>{filtered.length} enregistrement{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}.</p></div></div>
+        <div className="tableWrap">
+          <table>
+            <thead>
+              <tr><th>Nom</th><th>Prénom</th><th>Poste</th><th>Site</th><th>Type</th><th>Titre</th><th>Organisme</th><th>Date formation</th><th>Expiration</th><th>Statut</th><th>Réf.</th></tr>
+            </thead>
+            <tbody>
+              {filtered.map((h) => {
+                const jours  = daysUntil(h.date_expiration);
+                const urgent = h.date_expiration && jours <= 30;
+                return (
+                  <tr key={h.id} style={{ background: urgent ? "#fef9c322" : undefined }}>
+                    <td style={{ fontWeight:600 }}>{h.nom}</td>
+                    <td>{h.prenom}</td>
+                    <td style={{ fontSize:12, color:"var(--muted)" }}>{h.poste}</td>
+                    <td>{h.site}</td>
+                    <td><span className="status" style={{ background:"var(--bg)", color:"var(--muted)" }}>{h.type}</span></td>
+                    <td style={{ fontSize:12, maxWidth:180 }}>{h.titre}</td>
+                    <td style={{ fontSize:11, color:"var(--muted)" }}>{h.organisme}</td>
+                    <td style={{ fontSize:12 }}>{h.date_formation}</td>
+                    <td style={{ fontSize:12, color: jours < 0 ? "#dc2626" : jours <= 30 ? "#ea580c" : "inherit", fontWeight: jours <= 30 ? 600 : 400 }}>
+                      {h.date_expiration ?? "—"}{jours < 0 ? " ⚠ Exp." : jours <= 30 ? ` (${jours}j)` : ""}
+                    </td>
+                    <td><span className="status" style={{ background:`${STATUT_COLOR[h.statut]}22`, color:STATUT_COLOR[h.statut] }}>{h.statut}</span></td>
+                    <td style={{ fontSize:11 }}><code>{h.document_ref}</code></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  );
+}

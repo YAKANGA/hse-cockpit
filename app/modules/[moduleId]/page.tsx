@@ -7,6 +7,7 @@ import {
   FileDown,
 } from "lucide-react";
 import { moduleOperationalKpis, modules } from "@/lib/hse-data";
+import { hseAlerts } from "@/lib/alerts-data";
 import { getIntegratedModuleRecords } from "@/lib/import-store";
 import { getModuleDashboardData } from "@/lib/module-dashboard-data";
 import { getModuleRecords } from "@/lib/module-records-data";
@@ -14,6 +15,7 @@ import { getPpeSummary, ppeRecords } from "@/lib/ppe-data";
 import { getTenant } from "@/lib/tenant-analytics";
 import { ActionsPriorityPanel } from "@/components/ActionsPriorityPanel";
 import { AppSidebar } from "@/components/AppSidebar";
+import { CockpitFiltersBar } from "@/components/CockpitFiltersBar";
 import { EpiDashboardPanel } from "@/components/EpiDashboardPanel";
 import { EventsSeverityPanel } from "@/components/EventsSeverityPanel";
 import { IndicateursTFTGDashboard } from "@/components/IndicateursTFTGDashboard";
@@ -89,6 +91,7 @@ export default async function ModulePage({
           </div>
         </div>
         <div className="moduleHeroActions">
+          <CockpitFiltersBar />
           <a className="secondaryButton" href={`/api/templates/${module.id}${tenantQuery}`}>
             <Download size={18} />
             Modele Excel
@@ -147,7 +150,7 @@ export default async function ModulePage({
             </div>
             <div className="decisionBox">
               <strong>{operationalKpi.usefulAction}</strong>
-              <span>{operationalKpi.alertValue} {operationalKpi.alertLabel}</span>
+              <span>{hseAlerts.filter(a => a.moduleId === module.id).length} {operationalKpi.alertLabel}</span>
             </div>
           </article>
         </section>

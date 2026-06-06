@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, Cell } from "recharts";
-import { modules, moduleOperationalKpis } from "@/lib/hse-data";
-import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, Cell, LabelList, Pie, PieChart } from "recharts";
+import { getVbgByType, vbgIncidents } from "@/lib/vbg-data";
+import { useCockpitFilter, dateInRange } from "@/lib/use-cockpit-filter";
 import { getFilteredCockpitStats } from "@/lib/cockpit-stats";
 import { getTrainingSummary } from "@/lib/training-data";
 import { getCauserieSummary } from "@/lib/causeries-data";
@@ -18,29 +18,60 @@ function TrafficLight({ value, thresholds }: { value: number; thresholds: [numbe
 }
 
 export function ExecutiveDashboard() {
-  const { villes, projets } = useCockpitFilter();
-  const cockpitStats = useMemo(() => getFilteredCockpitStats(villes, projets), [villes, projets]);
+  const { villes, projets, dateDebut, dateFin } = useCockpitFilter();
+  const cockpitStats = useMemo(
+    () => getFilteredCockpitStats(villes, projets, dateDebut, dateFin),
+    [villes, projets, dateDebut, dateFin],
+  );
 
   const v = villes.length === 1 ? villes[0] : undefined;
-  const trainingSummary = useMemo(() => getTrainingSummary(v),         [v]);
-  const causerieSummary = useMemo(() => getCauserieSummary(v),         [v]);
-  const duerpSummary    = useMemo(() => getDuerpSummary(v),            [v]);
-  const medicalSummary  = useMemo(() => getMedicalSummary(v),          [v]);
-  const consoSummary    = useMemo(() => getConsommationSummary(v),     [v]);
-
-  const radarData = cockpitStats.moduleStats.map((m) => ({ subject: m.shortName, conformite: m.compliance, full: 100 }));
+  const trainingSummary = useMemo(() => getTrainingSummary(v, dateDebut, dateFin),    [v, dateDebut, dateFin]);
+  const causerieSummary = useMemo(() => getCauserieSummary(v, dateDebut, dateFin),    [v, dateDebut, dateFin]);
+  const duerpSummary    = useMemo(() => getDuerpSummary(v, dateDebut, dateFin),       [v, dateDebut, dateFin]);
+  const medicalSummary  = useMemo(() => getMedicalSummary(v, dateDebut, dateFin),     [v, dateDebut, dateFin]);
+  const consoSummary    = useMemo(() => getConsommationSummary(v, dateDebut, dateFin),[v, dateDebut, dateFin]);
 
   const isFiltered = cockpitStats.isFiltered;
 
+  const byType = useMemo(() => getVbgByType(), []);
+  const pieStatut = useMemo(() => {
+    const map: Record<string, number> = {};
+    vbgIncidents.forEach((i) => { map[i.statut] = (map[i.statut] ?? 0) + 1; });
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
+  }, []);
+
+  // Période précédente : même durée, immédiatement avant la période sélectionnée
+  const { prevDebut, prevFin } = useMemo(() => {
+    if (!dateDebut && !dateFin) return { prevDebut: undefined, prevFin: undefined };
+    if (dateDebut && dateFin) {
+      const start = new Date(dateDebut);
+      const end   = new Date(dateFin);
+      const ms    = end.getTime() - start.getTime();
+      const pEnd  = new Date(start.getTime() - 86400000);
+      const pStart = new Date(pEnd.getTime() - ms);
+      return { prevDebut: pStart.toISOString().slice(0, 10), prevFin: pEnd.toISOString().slice(0, 10) };
+    }
+    if (dateDebut) {
+      const d = new Date(dateDebut); d.setMonth(d.getMonth() - 1);
+      return { prevDebut: d.toISOString().slice(0, 10), prevFin: new Date(new Date(dateDebut).getTime() - 86400000).toISOString().slice(0, 10) };
+    }
+    const d = new Date(dateFin!); d.setMonth(d.getMonth() - 1);
+    return { prevDebut: d.toISOString().slice(0, 10), prevFin: dateFin };
+  }, [dateDebut, dateFin]);
+
+  const prevStats    = useMemo(() => isFiltered ? getFilteredCockpitStats(villes, projets, prevDebut, prevFin) : null, [villes, projets, prevDebut, prevFin, isFiltered]);
+
   const kpis = [
-    { label:"Accidents ce mois",        val: isFiltered ? cockpitStats.criticalCount       : 7,    prev:11,  unit:"",   icon:AlertTriangle, color:"#dc2626", thresholds:[5,10]    as [number,number], lower:true },
-    { label:"TF (acc. avec arrêt×1M/h)",val: 2.8,                                                  prev:3.4, unit:"",   icon:TrendingDown,  color:"#ea580c", thresholds:[3,5]     as [number,number], lower:true },
-    { label:"Heures sans accident",      val: 1240,                                                 prev:850, unit:" h", icon:Shield,        color:"#16a34a", thresholds:[500,1000] as [number,number], lower:false },
-    { label:"Taux conformité global",    val: cockpitStats.averageCompliance,                       prev:79,  unit:"%",  icon:CheckCircle2,  color:"#0f766e", thresholds:[75,85]   as [number,number], lower:false },
-    { label:"Actions en retard",         val: cockpitStats.totalOpenItems,                          prev:52,  unit:"",   icon:AlertTriangle, color:"#d97706", thresholds:[20,40]   as [number,number], lower:true },
-    { label:"Habilitations à jour",      val: trainingSummary.tauxAJour,                            prev:80,  unit:"%",  icon:Target,        color:"#2563eb", thresholds:[80,90]   as [number,number], lower:false },
-    { label:"Taux causeries",            val: causerieSummary.tauxParticipation,                    prev:88,  unit:"%",  icon:CheckCircle2,  color:"#0f766e", thresholds:[90,100]  as [number,number], lower:false },
-    { label:"Risques critiques DUERP",   val: duerpSummary.critique,                                prev:3,   unit:"",   icon:AlertTriangle, color:"#dc2626", thresholds:[3,6]     as [number,number], lower:true },
+    { label:"Accidents ce mois",         val: isFiltered ? cockpitStats.criticalCount    : 7,    prev: isFiltered ? (prevStats?.criticalCount    ?? 0) : 11, unit:"",   icon:AlertTriangle, color:"#dc2626", thresholds:[5,10]    as [number,number], lower:true },
+    ...(!isFiltered ? [
+      { label:"TF (acc. avec arrêt×1M/h)", val: 2.8,  prev:3.4, unit:"",   icon:TrendingDown, color:"#ea580c", thresholds:[3,5]     as [number,number], lower:true },
+      { label:"Heures sans accident",       val: 1240, prev:850, unit:" h", icon:Shield,       color:"#16a34a", thresholds:[500,1000] as [number,number], lower:false },
+    ] : []),
+    { label:"Taux conformité global",    val: cockpitStats.averageCompliance,                    prev: isFiltered ? (prevStats?.averageCompliance  ?? 0) : 79, unit:"%",  icon:CheckCircle2,  color:"#0f766e", thresholds:[75,85]   as [number,number], lower:false },
+    { label:"Actions en retard",         val: cockpitStats.totalOpenItems,                       prev: isFiltered ? (prevStats?.totalOpenItems      ?? 0) : 52, unit:"",   icon:AlertTriangle, color:"#d97706", thresholds:[20,40]   as [number,number], lower:true },
+    { label:"Habilitations à jour",      val: trainingSummary.tauxAJour,         prev: 80, unit:"%",  icon:Target,        color:"#2563eb", thresholds:[80,90]  as [number,number], lower:false },
+    { label:"Taux causeries",            val: causerieSummary.tauxParticipation, prev: 88, unit:"%",  icon:CheckCircle2,  color:"#0f766e", thresholds:[90,100] as [number,number], lower:false },
+    { label:"Risques critiques DUERP",   val: duerpSummary.critique,             prev: 3,  unit:"",   icon:AlertTriangle, color:"#dc2626", thresholds:[3,6]    as [number,number], lower:true },
   ];
 
   const siteScores = cockpitStats.filteredSites.map((s) => ({
@@ -49,18 +80,20 @@ export function ExecutiveDashboard() {
   }));
 
   const ALL_RISQUES = [
-    { titre:"Chute de hauteur — Echafaudage",  ville:"Abidjan",      niveau:"Critique", criticite:60, action:"Formation recyclage en cours" },
-    { titre:"Collision engin/piéton",          ville:"Bouake",       niveau:"Critique", criticite:45, action:"Plan circulation à réviser" },
-    { titre:"Stress thermique",                ville:"Yamoussoukro", niveau:"Élevé",    criticite:45, action:"Protocole canicule validé" },
-    { titre:"Déversement produits chimiques",  ville:"San Pedro",    niveau:"Élevé",    criticite:36, action:"Mise à jour plan intervention d'urgence" },
-    { titre:"Risque électrique — tableaux HT", ville:"Abidjan",      niveau:"Critique", criticite:54, action:"Habilitations électriques à renouveler" },
-    { titre:"Travaux en hauteur sans EPI",     ville:"Bouake",       niveau:"Critique", criticite:48, action:"Arrêt chantier jusqu'à équipement complet" },
+    { titre:"Chute de hauteur — Echafaudage",  ville:"Abidjan",      projectId:"PRJ-ABJ-002", niveau:"Critique", criticite:60, action:"Formation recyclage en cours",                date:"12/03/2025" },
+    { titre:"Collision engin/piéton",          ville:"Bouake",       projectId:"PRJ-BKE-001", niveau:"Critique", criticite:45, action:"Plan circulation à réviser",                  date:"08/04/2025" },
+    { titre:"Stress thermique",                ville:"Yamoussoukro", projectId:"PRJ-YMK-001", niveau:"Élevé",    criticite:45, action:"Protocole canicule validé",                   date:"20/06/2025" },
+    { titre:"Déversement produits chimiques",  ville:"San Pedro",    projectId:"PRJ-SPD-001", niveau:"Élevé",    criticite:36, action:"Mise à jour plan intervention d'urgence",     date:"15/02/2025" },
+    { titre:"Risque électrique — tableaux HT", ville:"Abidjan",      projectId:"PRJ-ABJ-001", niveau:"Critique", criticite:54, action:"Habilitations électriques à renouveler",      date:"03/05/2025" },
+    { titre:"Travaux en hauteur sans EPI",     ville:"Bouake",       projectId:"PRJ-BKE-002", niveau:"Critique", criticite:48, action:"Arrêt chantier jusqu'à équipement complet",   date:"28/01/2025" },
   ];
 
-  const topRisques = (villes.length
-    ? ALL_RISQUES.filter((r) => villes.includes(r.ville))
-    : ALL_RISQUES
-  ).slice(0, 3);
+  const topRisques = ALL_RISQUES.filter((r) => {
+    if (projets.length && !projets.includes(r.projectId))   return false;
+    if (villes.length  && !villes.includes(r.ville))        return false;
+    if (!dateInRange(r.date, dateDebut, dateFin))            return false;
+    return true;
+  }).slice(0, 3);
 
   const trend = cockpitStats.filteredTrend.map((m) => ({ ...m, objectif: 8 }));
 
@@ -73,7 +106,15 @@ export function ExecutiveDashboard() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <Shield size={18} style={{ color:"var(--primary)" }} />
-          <span style={{ fontSize:13, color:"var(--muted)" }}>Période : Juin 2026</span>
+          <span style={{ fontSize:13, color:"var(--muted)" }}>
+            {(() => {
+              const fmt = (iso: string) => iso.split("-").reverse().join("/");
+              if (dateDebut && dateFin) return `Période : ${fmt(dateDebut)} – ${fmt(dateFin)}`;
+              if (dateDebut)           return `Depuis le ${fmt(dateDebut)}`;
+              if (dateFin)             return `Jusqu'au ${fmt(dateFin)}`;
+              return "Toute période";
+            })()}
+          </span>
         </div>
       </div>
 
@@ -94,7 +135,7 @@ export function ExecutiveDashboard() {
               <span style={{ fontSize:12, color:"var(--muted)" }}>{label}</span>
               <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:11 }}>
                 <TrendIcon size={12} style={{ color:trendColor }} />
-                <span style={{ color:trendColor }}>{diff > 0 ? "+" : ""}{Number.isInteger(diff) ? diff : diff.toFixed(1)}{unit} vs mois préc.</span>
+                <span style={{ color:trendColor }}>{diff > 0 ? "+" : ""}{Number.isInteger(diff) ? diff : diff.toFixed(1)}{unit} {isFiltered ? "vs période préc." : "vs mois préc."}</span>
               </div>
             </div>
           );
@@ -104,20 +145,23 @@ export function ExecutiveDashboard() {
       {/* Site traffic lights + Top risques */}
       <div className="dashboardGrid" style={{ marginTop:18 }}>
         <article className="panel">
-          <div className="panelHeader"><div><h2>Performance par site</h2><p>Feux tricolores — conformité HSE.</p></div></div>
-          <div style={{ padding:"8px 16px", display:"flex", flexDirection:"column", gap:10 }}>
-            {siteScores.map((s) => (
-              <div key={s.site} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 12px", background:"var(--bg)", borderRadius:8 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <TrafficLight value={s.conformite} thresholds={[70, 85]} />
-                  <span style={{ fontWeight:600 }}>{s.site}</span>
-                </div>
-                <div style={{ display:"flex", gap:16, fontSize:13 }}>
-                  <span style={{ color:"var(--muted)" }}>{s.conformite}% conformité</span>
-                  <span style={{ color: s.evenements > 30 ? "#dc2626" : "#d97706" }}>{s.evenements} événements</span>
-                </div>
-              </div>
-            ))}
+          <div className="panelHeader"><div><h2>Performance par site</h2><p>Conformité et volume d&apos;événements par site.</p></div></div>
+          <div className="chart compact">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={siteScores} layout="vertical" barGap={6}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
+                <XAxis type="number" tickLine={false} axisLine={false} domain={[0, 100]} tick={{ fontSize:11 }} />
+                <YAxis type="category" dataKey="site" width={110} tickLine={false} axisLine={false} tick={{ fontSize:12 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize:12 }} />
+                <Bar dataKey="conformite" name="Conformite %" fill="#0f766e" radius={[0, 4, 4, 0]}>
+                  <LabelList dataKey="conformite" position="right" formatter={(v: unknown) => `${v}%`} style={{ fontSize:11, fill:"#0f766e", fontWeight:600 }} />
+                </Bar>
+                <Bar dataKey="evenements" name="Evenements" fill="#c2410c" radius={[0, 4, 4, 0]}>
+                  <LabelList dataKey="evenements" position="right" style={{ fontSize:11, fill:"#c2410c", fontWeight:600 }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </article>
 
@@ -136,17 +180,58 @@ export function ExecutiveDashboard() {
           </div>
         </article>
 
-        <article className="panel">
-          <div className="panelHeader"><div><h2>Conformité par module</h2><p>Radar de performance HSE globale.</p></div></div>
-          <div className="chart compact">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="subject" tick={{ fontSize:11 }} />
-                <Radar name="Conformité %" dataKey="conformite" stroke="#0f766e" fill="#0f766e" fillOpacity={0.3} />
-                <Tooltip formatter={(v) => [`${v}%`, "Conformité"]} />
-              </RadarChart>
-            </ResponsiveContainer>
+        <article className="panel" style={{ display:"flex", flexDirection:"column" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", borderBottom:"1px solid var(--line)" }}>
+            <div className="panelHeader" style={{ borderRight:"1px solid var(--line)", margin:0 }}>
+              <div><h2>Incidents VBG par type</h2><p>Classification OMS/WB</p></div>
+            </div>
+            <div className="panelHeader" style={{ margin:0 }}>
+              <div><h2>Statut des incidents</h2><p>Cible : 0 ouvert</p></div>
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", flex:1, minHeight:220 }}>
+            <div style={{ padding:"8px 0", borderRight:"1px solid var(--line)" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={byType} layout="vertical" margin={{ top:8, right:28, bottom:8, left:8 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
+                  <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize:11 }} />
+                  <YAxis type="category" dataKey="type" width={170} tick={{ fontSize:10 }} tickLine={false} axisLine={false} />
+                  <Tooltip />
+                  <Bar dataKey="count" name="Incidents" fill="#be185d" radius={[0,4,4,0]} barSize={14}>
+                    <LabelList dataKey="count" position="right" style={{ fontSize:11, fill:"#be185d", fontWeight:700 }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"12px 16px", gap:12 }}>
+              {(() => {
+                const COULEURS: Record<string,string> = { "Clôturé":"#16a34a","Résolu":"#22c55e","En investigation":"#d97706","Signalé":"#dc2626","Non fondé":"#94a3b8","Référé":"#7c3aed" };
+                return (
+                  <>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart margin={{ top:16, right:16, bottom:16, left:16 }}>
+                        <Pie data={pieStatut} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={55}
+                          label={({ percent }) => percent ? `${Math.round(percent * 100)}%` : ""} labelLine={false}>
+                          {pieStatut.map((e) => <Cell key={e.name} fill={COULEURS[e.name] ?? "#94a3b8"} />)}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:5 }}>
+                      {pieStatut.map((e) => (
+                        <div key={e.name} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", fontSize:11 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            <span style={{ width:8, height:8, borderRadius:2, background:COULEURS[e.name] ?? "#94a3b8", flexShrink:0 }} />
+                            <span style={{ color:"var(--text)" }}>{e.name}</span>
+                          </div>
+                          <strong style={{ color:COULEURS[e.name] ?? "#94a3b8" }}>{e.value}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         </article>
 

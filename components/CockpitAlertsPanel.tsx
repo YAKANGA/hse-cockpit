@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Clock } from "lucide-react";
 import { hseAlerts } from "@/lib/alerts-data";
-import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { useCockpitFilter, dateInRange } from "@/lib/use-cockpit-filter";
 
 const SEVERITY_ORDER = { Critique: 0, Haute: 1, Moyenne: 2 };
 const SEVERITY_CLASS: Record<string, string> = {
@@ -13,11 +13,12 @@ const SEVERITY_CLASS: Record<string, string> = {
 };
 
 export function CockpitAlertsPanel() {
-  const { villes, projets } = useCockpitFilter();
+  const { villes, projets, dateDebut, dateFin } = useCockpitFilter();
 
   const filtered = hseAlerts.filter((a) => {
-    if (villes.length  && !villes.includes(a.site))       return false;
+    if (villes.length  && !villes.includes(a.site))            return false;
     if (projets.length && !projets.includes(a.projectId ?? "")) return false;
+    if (!dateInRange(a.dueDate, dateDebut, dateFin))            return false;
     return true;
   });
 

@@ -24,11 +24,15 @@ function toPriority(value: unknown): ModuleRecord["priority"] {
 export function rowToModuleRecord(moduleId: string, tenantId: string | null | undefined, row: Record<string, unknown>, index: number): ModuleRecord {
   const site = stringValue(row.site, "Non renseigne");
   const entity = stringValue(row.projet, stringValue(row.service, site));
+  const projectId = stringValue(row.code_projet, "");
+  const projectName = stringValue(row.nom_projet ?? row.chantier ?? row.projet, site);
   const base = {
     id: `db-${tenantId ?? "global"}-${moduleId}-${index}`,
     moduleId,
     date: normalizeDate(row.date ?? row.mois ?? row.date_achat),
     site,
+    projectId,
+    projectName,
     entity,
     owner: stringValue(row.responsable, "Non assigne"),
     status: toRecordStatus(row.statut),

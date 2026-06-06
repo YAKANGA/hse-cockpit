@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useCockpitFilter } from "@/lib/use-cockpit-filter";
-import { getSiteKpis, getProjectKpisForCity, type SiteKpi, type ProjectKpi } from "@/lib/sites-data";
+import { getSiteKpisFiltered, getProjectKpisForCity, type SiteKpi, type ProjectKpi } from "@/lib/sites-data";
 import { ChevronDown, ChevronRight, MapPin, Users } from "lucide-react";
 
 type Metric = "openItems" | "criticalItems" | "overdueItems" | "conformite";
@@ -65,20 +65,18 @@ function ProjectCard({ p, metric }: { p: ProjectKpi; metric: Metric }) {
 
 export function SitesComparisonPanel() {
   const [metric, setMetric] = useState<Metric>("openItems");
-  const { villes: filtreVilles, projets: filtreProjects } = useCockpitFilter();
+  const { villes: filtreVilles, projets: filtreProjects, dateDebut, dateFin } = useCockpitFilter();
   const [expandedCity, setExpandedCity] = useState<string | null>(null);
 
   useEffect(() => {
-    setExpandedCity(filtreVilles.length === 1 ? filtreVilles[0] : null);
-  }, [filtreVilles]);
+    setExpandedCity(null);
+  }, [filtreVilles, filtreProjects, dateDebut, dateFin]);
 
-  const kpis = getSiteKpis();
-  const sorted = [...kpis].sort((a, b) => b[metric] - a[metric]);
-
-  const visibleKpis = filtreVilles.length ? sorted.filter((s) => filtreVilles.includes(s.site)) : sorted;
+  const visibleKpis = [...getSiteKpisFiltered(filtreVilles, filtreProjects, dateDebut, dateFin)].sort((a, b) => b[metric] - a[metric]);
   const maxVal = Math.max(...visibleKpis.map((k) => k[metric]), 1);
 
-  const drillCity = expandedCity ?? (filtreVilles.length === 1 ? filtreVilles[0] : null);
+  const autoCity = visibleKpis.length === 1 ? visibleKpis[0].site : null;
+  const drillCity = expandedCity ?? autoCity;
 
   return (
     <section className="cockpitBlock sitesBlock">
@@ -86,8 +84,8 @@ export function SitesComparisonPanel() {
         <div>
           <h2>Villes &amp; Projets HSE</h2>
           <p>
-            {filtreVilles.length
-              ? `Vue filtrée — ${filtreVilles.join(", ")}${filtreProjects.length ? ` / ${filtreProjects.length} projet(s)` : ""}`
+            {(filtreVilles.length || filtreProjects.length)
+              ? `Vue filtrée${filtreVilles.length ? ` — ${filtreVilles.join(", ")}` : ""}${filtreProjects.length ? ` / ${filtreProjects.length} projet(s)` : ""}`
               : "Performance HSE par ville — cliquer sur une ville pour voir ses projets."}
           </p>
         </div>
@@ -121,7 +119,7 @@ export function SitesComparisonPanel() {
                   {s.site}
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {!filtreVilles.length && <span className="siteCardRank">#{idx + 1}</span>}
+                  {!filtreVilles.length && !filtreProjects.length && <span className="siteCardRank">#{idx + 1}</span>}
                   {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </div>
               </div>
@@ -159,11 +157,10 @@ export function SitesComparisonPanel() {
             <span className="projectsDrillSub">— Projets actifs et leurs indicateurs HSE</span>
           </div>
           <div className="projectsGrid">
-            {getProjectKpisForCity(drillCity).map((p) => (
-              <div
-                key={p.projectId}
-                className={filtreProjects.includes(p.projectId) ? "projectCardHighlighted" : ""}
-              >
+            {getProjectKpisForCity(drillCity)
+              .filter((p) => !filtreProjects.length || filtreProjects.includes(p.projectId))
+              .map((p) => (
+              <div key={p.projectId}>
                 <ProjectCard p={p} metric={metric} />
               </div>
             ))}

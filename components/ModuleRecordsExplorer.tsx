@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, MapPin, Search } from "lucide-react";
 import type { ModuleRecord } from "@/lib/module-records-data";
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -14,108 +14,116 @@ type ModuleRecordsExplorerProps = {
 
 export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRecordsExplorerProps) {
   const [liveRecords, setLiveRecords] = useState(records);
-  const [query, setQuery] = useState("");
-  const [site, setSite] = useState("Tous");
-  const [status, setStatus] = useState("Tous");
-  const [page, setPage] = useState(1);
+  const [query, setQuery]     = useState("");
+  const [city, setCity]       = useState("Tous");
+  const [project, setProject] = useState("Tous");
+  const [status, setStatus]   = useState("Tous");
+  const [page, setPage]       = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  useEffect(() => {
-    setLiveRecords(records);
-  }, [records]);
+  useEffect(() => { setLiveRecords(records); }, [records]);
 
   useEffect(() => {
-    async function loadLiveRecords() {
+    async function load() {
       const params = new URLSearchParams();
-      if (tenantId) {
-        params.set("tenantId", tenantId);
-      }
-      const response = await fetch(`/api/modules/${moduleId}/records${params.toString() ? `?${params.toString()}` : ""}`);
-
-      if (!response.ok) {
-        return;
-      }
-
-      const payload = await response.json();
+      if (tenantId) params.set("tenantId", tenantId);
+      const res = await fetch(`/api/modules/${moduleId}/records${params.toString() ? `?${params.toString()}` : ""}`);
+      if (!res.ok) return;
+      const payload = await res.json();
       setLiveRecords(payload.records ?? records);
     }
-
-    loadLiveRecords();
+    load();
   }, [moduleId, records, tenantId]);
 
-  const sites = ["Tous", ...Array.from(new Set(liveRecords.map((record) => record.site)))];
-  const statuses = ["Tous", ...Array.from(new Set(liveRecords.map((record) => record.status)))];
+  // Reset project when city changes
+  useEffect(() => { setProject("Tous"); }, [city]);
+  useEffect(() => { setPage(1); }, [query, city, project, status, pageSize]);
 
-  const filteredRecords = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return liveRecords.filter((record) => {
-      const matchesQuery = normalizedQuery
-        ? [record.label, record.category, record.owner, record.entity, record.priority].join(" ").toLowerCase().includes(normalizedQuery)
+  const cities = useMemo(() =>
+    ["Tous", ...Array.from(new Set(liveRecords.map((r) => r.site))).sort()],
+    [liveRecords],
+  );
+
+  const projectsForCity = useMemo(() => {
+    const source = city === "Tous" ? liveRecords : liveRecords.filter((r) => r.site === city);
+    return ["Tous", ...Array.from(new Set(source.map((r) => r.projectName).filter(Boolean))).sort()];
+  }, [liveRecords, city]);
+
+  const statuses = useMemo(() =>
+    ["Tous", ...Array.from(new Set(liveRecords.map((r) => r.status)))],
+    [liveRecords],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return liveRecords.filter((r) => {
+      const matchQuery = q
+        ? [r.label, r.category, r.owner, r.entity, r.priority, r.projectName, r.site].join(" ").toLowerCase().includes(q)
         : true;
-      const matchesSite = site === "Tous" || record.site === site;
-      const matchesStatus = status === "Tous" || record.status === status;
-      return matchesQuery && matchesSite && matchesStatus;
+      const matchCity    = city === "Tous"    || r.site        === city;
+      const matchProject = project === "Tous" || r.projectName === project;
+      const matchStatus  = status === "Tous"  || r.status      === status;
+      return matchQuery && matchCity && matchProject && matchStatus;
     });
-  }, [liveRecords, query, site, status]);
+  }, [liveRecords, query, city, project, status]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pagedRecords = filteredRecords.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  useEffect(() => { setPage(1); }, [query, site, status, pageSize]);
-
-  const criticalCount = filteredRecords.filter((record) => record.priority === "Critique").length;
-  const openCount = filteredRecords.filter((record) => record.status !== "Clos" && record.status !== "Valide").length;
+  const totalPages   = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage     = Math.min(page, totalPages);
+  const paged        = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const criticalCount = filtered.filter((r) => r.priority === "Critique").length;
+  const openCount     = filtered.filter((r) => r.status !== "Clos" && r.status !== "Valide").length;
+  const projectCount  = new Set(filtered.map((r) => r.projectName).filter(Boolean)).size;
 
   return (
     <section className="panel moduleRecordsPanel">
       <div className="panelHeader">
         <div>
           <h2>Donnees detaillees du module</h2>
-          <p>Recherche, filtres et export des enregistrements rattaches au module.</p>
+          <p>Recherche, filtres et export des enregistrements par ville et projet.</p>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <a className="secondaryButton" href={`/api/modules/${moduleId}/records/export?format=csv${tenantId ? `&tenantId=${tenantId}` : ""}`}>
-            <Download size={16} />
-            CSV
+            <Download size={16} /> CSV
           </a>
           <a className="secondaryButton" href={`/api/modules/${moduleId}/records/export${tenantId ? `?tenantId=${tenantId}` : ""}`}>
-            <Download size={16} />
-            Excel
+            <Download size={16} /> Excel
           </a>
         </div>
       </div>
 
       <div className="moduleFilterKpis compact">
-        <span><strong>{filteredRecords.length}</strong> ligne(s)</span>
-        <span><strong>{openCount}</strong> ouverte(s)</span>
+        <span><strong>{filtered.length}</strong> enregistrement(s)</span>
+        <span><strong>{openCount}</strong> ouvert(s)</span>
         <span><strong>{criticalCount}</strong> critique(s)</span>
-        <span><strong>{sites.length - 1}</strong> site(s)</span>
+        <span><strong>{cities.length - 1}</strong> ville(s)</span>
+        <span><strong>{projectCount}</strong> projet(s)</span>
       </div>
 
-      <div className="filterBar moduleDashboardFilters">
+      <div className="filterBar moduleDashboardFilters recordsFilterBar">
         <label className="filterSearch">
           <Search size={17} />
           <input
-            placeholder="Rechercher action, responsable, categorie..."
+            placeholder="Rechercher libelle, projet, responsable..."
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
           />
         </label>
         <label>
-          Site
-          <select value={site} onChange={(event) => setSite(event.target.value)}>
-            {sites.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
+          Ville
+          <select value={city} onChange={(e) => setCity(e.target.value)}>
+            {cities.map((c) => <option key={c}>{c}</option>)}
+          </select>
+        </label>
+        <label>
+          Projet
+          <select value={project} onChange={(e) => setProject(e.target.value)}>
+            {projectsForCity.map((p) => <option key={p}>{p}</option>)}
           </select>
         </label>
         <label>
           Statut
-          <select value={status} onChange={(event) => setStatus(event.target.value)}>
-            {statuses.map((option) => (
-              <option key={option}>{option}</option>
-            ))}
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            {statuses.map((s) => <option key={s}>{s}</option>)}
           </select>
         </label>
       </div>
@@ -125,7 +133,7 @@ export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRec
           <thead>
             <tr>
               <th>Date</th>
-              <th>Site</th>
+              <th>Ville / Projet</th>
               <th>Element</th>
               <th>Categorie</th>
               <th>Responsable</th>
@@ -135,20 +143,31 @@ export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRec
             </tr>
           </thead>
           <tbody>
-            {pagedRecords.map((record) => (
-              <tr key={record.id}>
-                <td>{record.date}</td>
-                <td>{record.site}</td>
-                <td>{record.label}</td>
-                <td>{record.category}</td>
-                <td>{record.owner}</td>
+            {paged.length === 0 ? (
+              <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--muted)", padding: "24px" }}>Aucun enregistrement</td></tr>
+            ) : paged.map((r) => (
+              <tr key={r.id}>
+                <td>{r.date}</td>
                 <td>
-                  <span className={record.priority === "Critique" || record.priority === "Haute" ? "status warn" : "status ok"}>
-                    {record.priority}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--muted)" }}>
+                      <MapPin size={10} /> {r.site}
+                    </span>
+                    {r.projectName && (
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{r.projectName}</span>
+                    )}
+                  </div>
+                </td>
+                <td>{r.label}</td>
+                <td>{r.category}</td>
+                <td>{r.owner}</td>
+                <td>
+                  <span className={r.priority === "Critique" || r.priority === "Haute" ? "status warn" : "status ok"}>
+                    {r.priority}
                   </span>
                 </td>
-                <td>{record.dueDate}</td>
-                <td>{record.status}</td>
+                <td>{r.dueDate}</td>
+                <td>{r.status}</td>
               </tr>
             ))}
           </tbody>
@@ -157,7 +176,9 @@ export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRec
 
       <div className="pagination">
         <div className="paginationInfo">
-          {filteredRecords.length === 0 ? "Aucun enregistrement" : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filteredRecords.length)} sur ${filteredRecords.length}`}
+          {filtered.length === 0
+            ? "Aucun enregistrement"
+            : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filtered.length)} sur ${filtered.length}`}
         </div>
         <div className="paginationControls">
           <label className="paginationSize">

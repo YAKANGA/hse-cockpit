@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { AppSidebar } from "@/components/AppSidebar";
 import { moduleOperationalKpis } from "@/lib/hse-data";
+import { hseAlerts } from "@/lib/alerts-data";
 import { getTenant, getTenantActiveModules, getTenantSummary } from "@/lib/tenant-analytics";
 import { tenants } from "@/lib/tenant-data";
 import "../../globals.css";
@@ -94,7 +95,7 @@ export default async function EnterprisePage({ params }: { params: Promise<{ ten
                     <span><strong>{module.records}</strong> lignes</span>
                     <span><strong>{module.compliance}%</strong> conformite</span>
                     <span><strong>{module.pendingItems}</strong> ouverts</span>
-                    <span><strong>{kpi?.alertValue ?? 0}</strong> alertes</span>
+                    <span><strong>{hseAlerts.filter(a => a.moduleId === module.id).length}</strong> alertes</span>
                   </div>
                   <div className="moduleSynthesisAction">
                     <p>{kpi?.usefulAction}</p>

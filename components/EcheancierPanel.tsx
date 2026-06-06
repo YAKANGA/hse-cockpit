@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Calendar, ChevronDown, ChevronRight, Clock, Eye, EyeOff, MapPin, User } from "lucide-react";
 import { getUpcomingEcheances, type EcheanceItem } from "@/lib/sites-data";
-import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { useCockpitFilter, dateInRange } from "@/lib/use-cockpit-filter";
 
 type UrgencyKey = "overdue" | "urgent" | "week" | "soon";
 
@@ -15,12 +15,21 @@ const URGENCY_CONFIG: Record<UrgencyKey, { label: string; sublabel: string; cls:
 };
 
 const MODULE_COLORS: Record<string, string> = {
-  events:      "#c2410c",
-  inspections: "#047857",
-  permits:     "#b45309",
-  actions:     "#2563eb",
-  indicators:  "#7c3aed",
-  ppe:         "#0e7490",
+  events:       "#c2410c",
+  inspections:  "#047857",
+  permits:      "#b45309",
+  actions:      "#2563eb",
+  indicators:   "#7c3aed",
+  ppe:          "#0e7490",
+  environment:  "#15803d",
+  training:     "#1d4ed8",
+  causeries:    "#0891b2",
+  duerp:        "#7c3aed",
+  medical:      "#be185d",
+  acr:          "#c2410c",
+  consumption:  "#0369a1",
+  planification:"#6d28d9",
+  vbg:          "#be185d",
 };
 
 function CountdownChip({ item }: { item: EcheanceItem }) {
@@ -61,17 +70,18 @@ function EcheanceRow({ item }: { item: EcheanceItem }) {
 }
 
 export function EcheancierPanel() {
-  const { villes, projets } = useCockpitFilter();
+  const { villes, projets, dateDebut, dateFin } = useCockpitFilter();
   const all = useMemo(() => {
     const items = getUpcomingEcheances();
     return items.filter((i) => {
-      if (villes.length  && !villes.includes(i.site))        return false;
+      if (villes.length  && !villes.includes(i.site))             return false;
       if (projets.length && !projets.includes(i.projectId ?? "")) return false;
+      if (!dateInRange(i.dueDate, dateDebut, dateFin))            return false;
       return true;
     });
-  }, [villes, projets]);
+  }, [villes, projets, dateDebut, dateFin]);
   const [filter, setFilter] = useState<"all" | UrgencyKey>("all");
-  const [collapsed, setCollapsed] = useState<Set<UrgencyKey>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<UrgencyKey>>(new Set(["overdue", "urgent", "week", "soon"] as UrgencyKey[]));
 
   const counts: Record<UrgencyKey, number> = {
     overdue: all.filter((i) => i.urgency === "overdue").length,

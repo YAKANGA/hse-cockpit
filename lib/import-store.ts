@@ -66,11 +66,15 @@ function toPriority(value: unknown): ModuleRecord["priority"] {
 function rowToModuleRecord(moduleId: string, tenantId: string | null, row: Record<string, unknown>, index: number): ModuleRecord {
   const site = stringValue(row.site, "Non renseigne");
   const entity = stringValue(row.projet, stringValue(row.service, site));
+  const projectId = stringValue(row.code_projet, "");
+  const projectName = stringValue(row.nom_projet ?? row.chantier ?? row.projet, site);
   const base = {
     id: `imp-${tenantId ?? "global"}-${moduleId}-${Date.now()}-${index}`,
     moduleId,
     date: normalizeDate(row.date ?? row.mois ?? row.date_achat),
     site,
+    projectId,
+    projectName,
     entity,
     owner: stringValue(row.responsable, "Non assigne"),
     status: toRecordStatus(row.statut),
@@ -135,6 +139,82 @@ function rowToModuleRecord(moduleId: string, tenantId: string | null, row: Recor
       status: Number(row.quantite_disponible ?? 0) <= 0 ? "A corriger" : "Valide",
       priority: Number(row.quantite_disponible ?? 0) <= 5 ? "Haute" : "Normale",
       dueDate: normalizeDate(row.date_expiration),
+    };
+  }
+
+  if (moduleId === "training") {
+    return {
+      ...base,
+      date:     normalizeDate(row.date_formation),
+      dueDate:  normalizeDate(row.date_expiration ?? row.date_formation),
+      label:    stringValue(row.titre, "Habilitation importee"),
+      category: stringValue(row.type, "Formation"),
+      owner:    stringValue(row.nom, "") + " " + stringValue(row.prenom, ""),
+      status:   stringValue(row.statut) === "Valide" ? "Valide" : stringValue(row.statut) === "Expire" ? "A corriger" : "En cours",
+      priority: stringValue(row.statut) === "Expire" ? "Critique" : stringValue(row.statut) === "A renouveler" ? "Haute" : "Normale",
+    };
+  }
+
+  if (moduleId === "causeries") {
+    const taux = Number(row.nb_participants ?? 0) / Math.max(Number(row.nb_prevus ?? 1), 1);
+    return {
+      ...base,
+      label:    stringValue(row.theme, "Causerie importee"),
+      category: stringValue(row.type, "Causerie"),
+      owner:    stringValue(row.animateur, "Animateur HSE"),
+      status:   taux >= 0.9 ? "Valide" : taux >= 0.75 ? "En cours" : "A corriger",
+      priority: taux < 0.75 ? "Haute" : "Normale",
+    };
+  }
+
+  if (moduleId === "duerp") {
+    const criticite = Number(row.frequence ?? 1) * Number(row.gravite ?? 1) * Number(row.probabilite ?? 1);
+    return {
+      ...base,
+      label:    stringValue(row.risque, "Risque importe"),
+      category: stringValue(row.unite_travail, "Unite de travail"),
+      status:   stringValue(row.statut) === "Maitrise" ? "Clos" : stringValue(row.statut) === "En cours de traitement" ? "En cours" : "Ouvert",
+      priority: criticite >= 50 ? "Critique" : criticite >= 25 ? "Haute" : criticite >= 10 ? "Normale" : "Basse",
+    };
+  }
+
+  if (moduleId === "medical") {
+    const today = new Date().toISOString().slice(0, 10);
+    const expired = stringValue(row.date_prochaine) < today;
+    return {
+      ...base,
+      date:     normalizeDate(row.date_visite),
+      dueDate:  normalizeDate(row.date_prochaine),
+      label:    `${stringValue(row.nom, "")} ${stringValue(row.prenom, "")} — ${stringValue(row.type_visite, "Visite")}`,
+      category: stringValue(row.type_visite, "Visite medicale"),
+      owner:    stringValue(row.medecin, "Medecin du travail"),
+      status:   expired ? "A corriger" : stringValue(row.aptitude) === "Apte" ? "Valide" : "En cours",
+      priority: expired ? "Critique" : stringValue(row.aptitude).startsWith("Inapte") ? "Haute" : "Normale",
+    };
+  }
+
+  if (moduleId === "acr") {
+    return {
+      ...base,
+      date:     normalizeDate(row.date_analyse ?? row.date_evenement),
+      label:    `ACR — ${stringValue(row.evenement_ref, "Evenement")} : ${stringValue(row.description ?? row.type_evenement, "")}`,
+      category: stringValue(row.type_evenement, "Analyse"),
+      owner:    stringValue(row.responsable, "Responsable HSE"),
+      status:   stringValue(row.statut) === "Cloture" ? "Clos" : stringValue(row.statut) === "Actions lancees" ? "En cours" : "Ouvert",
+      priority: "Haute",
+    };
+  }
+
+  if (moduleId === "consumption") {
+    const depasse = Number(row.eau_m3 ?? 0) > Number(row.objectif_eau ?? 9999);
+    return {
+      ...base,
+      date:     `${stringValue(row.mois, new Date().toISOString().slice(0, 7))}-01`,
+      label:    `Consommations ${stringValue(row.mois, "")} — ${stringValue(row.site, "")}`,
+      category: "Consommations environnementales",
+      owner:    "Responsable HSE site",
+      status:   depasse ? "A corriger" : "Valide",
+      priority: depasse ? "Haute" : "Normale",
     };
   }
 

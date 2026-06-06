@@ -12,8 +12,8 @@ export async function GET(request: Request) {
   const tenantId = url.searchParams.get("tenantId") ?? session.tenantId ?? "acme-btp";
 
   try {
-    const { getTenantModules } = await import("@/lib/db");
-    const overrides = getTenantModules(tenantId);
+    const { getTenantModules } = await import("@/lib/db-auto");
+    const overrides = await getTenantModules(tenantId);
     const result = modules.map((m) => ({
       id: m.id,
       name: m.name,
@@ -36,8 +36,8 @@ export async function POST(request: Request) {
   const tenantId = body.tenantId ?? session.tenantId ?? "acme-btp";
 
   try {
-    const { setTenantModuleActive } = await import("@/lib/db");
-    setTenantModuleActive(tenantId, body.moduleId, body.active);
+    const { setTenantModuleActive } = await import("@/lib/db-auto");
+    await setTenantModuleActive(tenantId, body.moduleId, body.active);
     return Response.json({ success: true, moduleId: body.moduleId, active: body.active });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });

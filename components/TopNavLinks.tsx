@@ -8,6 +8,7 @@ import {
   BarChart3,
   BookOpen,
   Building2,
+  CalendarDays,
   ChevronDown,
   Crown,
   FileDown,
@@ -75,6 +76,13 @@ export function TopNavLinks() {
         <a className={isActive("/sites") ? "topNavLink active" : "topNavLink"} href="/sites">
           <Building2 size={15} />
           Sites
+        </a>
+      )}
+
+      {perms.has("module:view") && (
+        <a className={isActive("/calendrier") ? "topNavLink active" : "topNavLink"} href="/calendrier">
+          <CalendarDays size={15} />
+          Calendrier
         </a>
       )}
 

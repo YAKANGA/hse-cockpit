@@ -20,9 +20,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ modu
 
   let dbRecords: typeof inMemory = [];
   try {
-    const { getImportRecordsByModule } = await import("@/lib/db");
+    const { getImportRecordsByModule } = await import("@/lib/db-auto");
     const { rowToModuleRecord } = await import("@/lib/import-store-server");
-    const rawRows = getImportRecordsByModule(moduleId, tenantId);
+    const rawRows = await getImportRecordsByModule(moduleId, tenantId);
     dbRecords = rawRows
       .map((row, i) => rowToModuleRecord(moduleId, tenantId, row, i))
       .filter((r) => !inMemoryIds.has(r.id));

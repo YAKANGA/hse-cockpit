@@ -5517,3 +5517,285 @@ th {
 }
 
 .cockpitMultiClearAll:hover { color: var(--danger); }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Sites KPI cards
+══════════════════════════════════════════════════════════════════════════════ */
+.sitesKpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.sitesKpiCard {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.sitesKpiCard:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+
+.sitesKpiCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sitesKpiCardName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.sitesKpiCardMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  text-align: center;
+}
+
+.sitesKpiCardMetrics div {
+  display: grid;
+  gap: 2px;
+}
+
+.sitesKpiCardMetrics strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.sitesKpiCardMetrics span {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sitesKpiBar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.sitesKpiBarFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Mobile responsive — breakpoint ≤ 768px
+══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Navigation mobile */
+  .topNavCenter { display: none; }
+  .mobileNavToggle { display: flex; }
+
+  .workspace,
+  .modulePage {
+    padding: 14px 12px;
+  }
+
+  /* Hero bands */
+  .heroBand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    min-height: auto;
+    padding: 16px !important;
+  }
+
+  .heroActions,
+  .moduleHeroActions {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .heroActions a,
+  .heroActions button,
+  .moduleHeroActions a,
+  .moduleHeroActions button {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 120px;
+    justify-content: center;
+  }
+
+  /* KPI grids */
+  .kpiGridCompact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .adminStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Sites */
+  .sitesKpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sitesKpiCardMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Module action grid */
+  .moduleActionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Panels */
+  .splitGrid,
+  .splitGrid2,
+  .twoColGrid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tables */
+  .tableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Import form */
+  .importForm {
+    grid-template-columns: 1fr;
+  }
+
+  /* Priority grid */
+  .priorityGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Period toggles */
+  .periodToggle {
+    flex-wrap: wrap;
+  }
+
+  /* KPI Sparkline cards */
+  .tftgKpis,
+  .actionsKpis,
+  .severityKpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Section titles */
+  .sectionTitle {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* Module hero */
+  .moduleHero {
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .moduleHeroTitle {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Global search */
+  .globalSearchOverlay {
+    padding: 16px 12px;
+  }
+
+  .globalSearchBox {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Report list */
+  .reportList.twoColumns {
+    grid-template-columns: 1fr;
+  }
+
+  /* Topbar */
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .searchBox {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* Alerts priority grid */
+  .alertsPriorityGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* breakpoint ≤ 480px — très petits écrans */
+@media (max-width: 480px) {
+  .kpiGridCompact {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .adminStats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sitesKpiGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .priorityGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tftgKpis,
+  .actionsKpis,
+  .severityKpis {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .heroBand h1 {
+    font-size: 20px !important;
+  }
+
+  .heroActions a,
+  .heroActions button {
+    flex: 1 1 100%;
+  }
+
+  .moduleHeroActions a {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Tablet responsive — 769px – 1024px
+══════════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .kpiGridCompact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .splitGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .priorityGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tftgKpis,
+  .actionsKpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

@@ -2,13 +2,17 @@
 
 import { Download } from "lucide-react";
 import { useMemo } from "react";
-import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { useCockpitFilter, dateInRange } from "@/lib/use-cockpit-filter";
 import { getFilteredCockpitStats } from "@/lib/cockpit-stats";
 import { moduleOperationalKpis } from "@/lib/hse-data";
+import { hseAlerts } from "@/lib/alerts-data";
 
 export function CockpitModuleSynthesis() {
-  const { villes, projets } = useCockpitFilter();
-  const stats = useMemo(() => getFilteredCockpitStats(villes, projets), [villes, projets]);
+  const { villes, projets, dateDebut, dateFin } = useCockpitFilter();
+  const stats = useMemo(
+    () => getFilteredCockpitStats(villes, projets, dateDebut, dateFin),
+    [villes, projets, dateDebut, dateFin],
+  );
   const filterLabel = villes.length
     ? ` — ${villes.length === 1 ? villes[0] : `${villes.length} villes`}${projets.length ? ` / ${projets.length} projet(s)` : ""}`
     : "";
@@ -52,7 +56,7 @@ export function CockpitModuleSynthesis() {
                   <strong>{module.compliance}%</strong> Conformite
                 </span>
                 <span><strong>{module.pendingItems}</strong> En attente</span>
-                <span><strong>{operational?.alertValue ?? 0}</strong> Alertes</span>
+                <span><strong>{hseAlerts.filter(a => a.moduleId === module.id && (!villes.length || villes.includes(a.site)) && dateInRange(a.dueDate, dateDebut, dateFin)).length}</strong> Alertes</span>
               </div>
               <div className="moduleSynthesisAction">
                 <p>{operational?.usefulAction}</p>

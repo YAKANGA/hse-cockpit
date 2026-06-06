@@ -11,8 +11,8 @@ export async function GET(request: Request) {
   const tenantId = url.searchParams.get("tenantId") ?? session.tenantId;
 
   try {
-    const { getReportConclusions } = await import("@/lib/db");
-    const conclusions = getReportConclusions(tenantId);
+    const { getReportConclusions } = await import("@/lib/db-auto");
+    const conclusions = await getReportConclusions(tenantId);
     return Response.json({ conclusions });
   } catch {
     return Response.json({ conclusions: [] });
@@ -28,8 +28,8 @@ export async function POST(request: Request) {
   const tenantId = body.tenantId ?? session.tenantId;
 
   try {
-    const { upsertReportConclusion } = await import("@/lib/db");
-    const id = upsertReportConclusion(tenantId, body.scope, body.title, body.body);
+    const { upsertReportConclusion } = await import("@/lib/db-auto");
+    const id = await upsertReportConclusion(tenantId, body.scope, body.title, body.body);
     return Response.json({ success: true, id });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 500 });

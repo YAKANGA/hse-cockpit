@@ -1,4 +1,4 @@
-import { Database, FileDown } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CockpitAlertsPanel } from "@/components/CockpitAlertsPanel";
 import { CockpitFiltersBar } from "@/components/CockpitFiltersBar";
@@ -31,9 +31,6 @@ export default function Home() {
             </a>
             <a className="darkButton" href="/api/reports/global/pdf">
               <FileDown size={16} /> PDF
-            </a>
-            <a className="secondaryButton" href="/api/modules">
-              <Database size={16} /> Donnees modules
             </a>
           </div>
         </section>
