@@ -5456,15 +5456,13 @@ th {
 }
 
 .cockpitMultiDropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
+  position: fixed;
   min-width: 220px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-  z-index: 200;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+  z-index: 9999;
   padding: 6px;
   display: flex;
   flex-direction: column;
