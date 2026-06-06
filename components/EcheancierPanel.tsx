@@ -61,15 +61,15 @@ function EcheanceRow({ item }: { item: EcheanceItem }) {
 }
 
 export function EcheancierPanel() {
-  const cockpitFilter = useCockpitFilter();
+  const { villes, projets } = useCockpitFilter();
   const all = useMemo(() => {
     const items = getUpcomingEcheances();
     return items.filter((i) => {
-      if (cockpitFilter.ville && (i as EcheanceItem & { site?: string }).site !== cockpitFilter.ville) return false;
-      if (cockpitFilter.projet && !i.projectName?.includes(cockpitFilter.projet)) return false;
+      if (villes.length  && !villes.includes(i.site))        return false;
+      if (projets.length && !projets.includes(i.projectId ?? "")) return false;
       return true;
     });
-  }, [cockpitFilter.ville, cockpitFilter.projet]);
+  }, [villes, projets]);
   const [filter, setFilter] = useState<"all" | UrgencyKey>("all");
   const [collapsed, setCollapsed] = useState<Set<UrgencyKey>>(new Set());
 

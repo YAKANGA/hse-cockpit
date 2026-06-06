@@ -7,9 +7,11 @@ import { getFilteredCockpitStats } from "@/lib/cockpit-stats";
 import { moduleOperationalKpis } from "@/lib/hse-data";
 
 export function CockpitModuleSynthesis() {
-  const { ville, projet } = useCockpitFilter();
-  const stats = useMemo(() => getFilteredCockpitStats(ville, projet), [ville, projet]);
-  const filterLabel = ville ? ` — ${ville}${projet ? ` / ${projet}` : ""}` : "";
+  const { villes, projets } = useCockpitFilter();
+  const stats = useMemo(() => getFilteredCockpitStats(villes, projets), [villes, projets]);
+  const filterLabel = villes.length
+    ? ` — ${villes.length === 1 ? villes[0] : `${villes.length} villes`}${projets.length ? ` / ${projets.length} projet(s)` : ""}`
+    : "";
 
   return (
     <section className="cockpitBlock" id="modules">

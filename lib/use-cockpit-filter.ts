@@ -4,39 +4,42 @@ import { useEffect, useState } from "react";
 import { SITES } from "@/lib/sites-data";
 import { projects } from "@/lib/projects-data";
 
-export const ALL_CITIES = ["Toutes les villes", ...SITES] as const;
+export const ALL_CITIES = [...SITES] as string[];
 export const ALL_PROJECTS_LABEL = "Tous les projets";
 
 export type CockpitFilter = {
-  ville: string;
-  projet: string;
+  villes: string[];
+  projets: string[];
 };
 
-const STORAGE_KEY_VILLE = "hse-cockpit-ville";
-const STORAGE_KEY_PROJET = "hse-cockpit-projet";
+const STORAGE_KEY_VILLES  = "hse-cockpit-villes";
+const STORAGE_KEY_PROJETS = "hse-cockpit-projets";
 export const COCKPIT_FILTER_EVENT = "hse-cockpit-filter-change";
 
-export function getProjectsForCity(city: string) {
-  if (!city || city === "Toutes les villes") return projects;
-  return projects.filter((p) => p.city === city);
+export function getProjectsForCities(villes: string[]) {
+  if (!villes.length) return projects;
+  return projects.filter((p) => villes.includes(p.city));
 }
 
 export function readCockpitFilter(): CockpitFilter {
-  if (typeof window === "undefined") return { ville: "", projet: "" };
-  return {
-    ville: localStorage.getItem(STORAGE_KEY_VILLE) ?? "",
-    projet: localStorage.getItem(STORAGE_KEY_PROJET) ?? "",
-  };
+  if (typeof window === "undefined") return { villes: [], projets: [] };
+  try {
+    const villes  = JSON.parse(localStorage.getItem(STORAGE_KEY_VILLES)  ?? "[]") as string[];
+    const projets = JSON.parse(localStorage.getItem(STORAGE_KEY_PROJETS) ?? "[]") as string[];
+    return { villes, projets };
+  } catch {
+    return { villes: [], projets: [] };
+  }
 }
 
 export function writeCockpitFilter(filter: CockpitFilter) {
-  localStorage.setItem(STORAGE_KEY_VILLE, filter.ville);
-  localStorage.setItem(STORAGE_KEY_PROJET, filter.projet);
+  localStorage.setItem(STORAGE_KEY_VILLES,  JSON.stringify(filter.villes));
+  localStorage.setItem(STORAGE_KEY_PROJETS, JSON.stringify(filter.projets));
   window.dispatchEvent(new CustomEvent(COCKPIT_FILTER_EVENT, { detail: filter }));
 }
 
 export function useCockpitFilter(): CockpitFilter {
-  const [filter, setFilter] = useState<CockpitFilter>({ ville: "", projet: "" });
+  const [filter, setFilter] = useState<CockpitFilter>({ villes: [], projets: [] });
 
   useEffect(() => {
     setFilter(readCockpitFilter());
@@ -60,8 +63,8 @@ export function useCockpitFilter(): CockpitFilter {
   return filter;
 }
 
-export function matchesFilter(record: { site?: string; entity?: string }, filter: CockpitFilter): boolean {
-  const villeOk = !filter.ville || record.site === filter.ville;
-  const projetOk = !filter.projet || record.entity === filter.projet || record.site === filter.projet;
+export function matchesFilter(record: { site?: string; projectId?: string }, filter: CockpitFilter): boolean {
+  const villeOk  = !filter.villes.length  || (record.site      ? filter.villes.includes(record.site)      : true);
+  const projetOk = !filter.projets.length || (record.projectId ? filter.projets.includes(record.projectId) : true);
   return villeOk && projetOk;
 }

@@ -7,10 +7,12 @@ import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 import { getFilteredCockpitStats } from "@/lib/cockpit-stats";
 
 export function CockpitKpiRow() {
-  const { ville, projet } = useCockpitFilter();
-  const stats = useMemo(() => getFilteredCockpitStats(ville, projet), [ville, projet]);
+  const { villes, projets } = useCockpitFilter();
+  const stats = useMemo(() => getFilteredCockpitStats(villes, projets), [villes, projets]);
 
-  const filterLabel = ville ? ` — ${ville}${projet ? ` / ${projet}` : ""}` : "";
+  const filterLabel = villes.length
+    ? ` — ${villes.length === 1 ? villes[0] : `${villes.length} villes`}${projets.length ? ` / ${projets.length} projet(s)` : ""}`
+    : "";
 
   return (
     <>

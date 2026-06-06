@@ -27,8 +27,8 @@ export function GlobalSynthesisCharts() {
   const [mounted, setMounted] = useState(false);
   const [period, setPeriod] = useState<Period>("6m");
   const [showN1, setShowN1] = useState(false);
-  const { ville, projet } = useCockpitFilter();
-  const cockpitStats = useMemo(() => getFilteredCockpitStats(ville, projet), [ville, projet]);
+  const { villes, projets } = useCockpitFilter();
+  const cockpitStats = useMemo(() => getFilteredCockpitStats(villes, projets), [villes, projets]);
 
   useEffect(() => {
     setMounted(true);

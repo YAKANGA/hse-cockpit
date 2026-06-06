@@ -13,11 +13,11 @@ const SEVERITY_CLASS: Record<string, string> = {
 };
 
 export function CockpitAlertsPanel() {
-  const { ville, projet } = useCockpitFilter();
+  const { villes, projets } = useCockpitFilter();
 
   const filtered = hseAlerts.filter((a) => {
-    if (ville && a.site !== ville) return false;
-    if (projet && !a.projectName?.includes(projet) && a.site !== projet) return false;
+    if (villes.length  && !villes.includes(a.site))       return false;
+    if (projets.length && !projets.includes(a.projectId ?? "")) return false;
     return true;
   });
 

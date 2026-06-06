@@ -65,27 +65,20 @@ function ProjectCard({ p, metric }: { p: ProjectKpi; metric: Metric }) {
 
 export function SitesComparisonPanel() {
   const [metric, setMetric] = useState<Metric>("openItems");
-  const { ville: filtreVille, projet: filtreProjet } = useCockpitFilter();
+  const { villes: filtreVilles, projets: filtreProjects } = useCockpitFilter();
   const [expandedCity, setExpandedCity] = useState<string | null>(null);
 
-  // Sync manual expansion with cockpit filter
   useEffect(() => {
-    setExpandedCity(filtreVille || null);
-  }, [filtreVille]);
+    setExpandedCity(filtreVilles.length === 1 ? filtreVilles[0] : null);
+  }, [filtreVilles]);
 
   const kpis = getSiteKpis();
   const sorted = [...kpis].sort((a, b) => b[metric] - a[metric]);
 
-  // When a city is filtered, show only that city; otherwise show all
-  const visibleKpis = filtreVille ? sorted.filter((s) => s.site === filtreVille) : sorted;
-  const chartData = visibleKpis.map((s) => ({
-    site: s.site,
-    value: s[metric],
-    fill: SITE_COLORS[s.site] ?? "#64748b",
-  }));
+  const visibleKpis = filtreVilles.length ? sorted.filter((s) => filtreVilles.includes(s.site)) : sorted;
   const maxVal = Math.max(...visibleKpis.map((k) => k[metric]), 1);
 
-  const drillCity = expandedCity ?? (filtreVille || null);
+  const drillCity = expandedCity ?? (filtreVilles.length === 1 ? filtreVilles[0] : null);
 
   return (
     <section className="cockpitBlock sitesBlock">
@@ -93,8 +86,8 @@ export function SitesComparisonPanel() {
         <div>
           <h2>Villes &amp; Projets HSE</h2>
           <p>
-            {filtreVille
-              ? `Vue filtrée — ${filtreVille}${filtreProjet ? ` › ${filtreProjet}` : ""}`
+            {filtreVilles.length
+              ? `Vue filtrée — ${filtreVilles.join(", ")}${filtreProjects.length ? ` / ${filtreProjects.length} projet(s)` : ""}`
               : "Performance HSE par ville — cliquer sur une ville pour voir ses projets."}
           </p>
         </div>
@@ -108,7 +101,7 @@ export function SitesComparisonPanel() {
       </div>
 
       {/* ── Cartes villes ── */}
-      <div className={`sitesCardRow${filtreVille ? " sitesCardRowFiltered" : ""}`}>
+      <div className={`sitesCardRow${filtreVilles.length ? " sitesCardRowFiltered" : ""}`}>
         {visibleKpis.map((s, idx) => {
           const color = SITE_COLORS[s.site] ?? "#64748b";
           const val = s[metric];
@@ -128,7 +121,7 @@ export function SitesComparisonPanel() {
                   {s.site}
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {!filtreVille && <span className="siteCardRank">#{idx + 1}</span>}
+                  {!filtreVilles.length && <span className="siteCardRank">#{idx + 1}</span>}
                   {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </div>
               </div>
@@ -169,7 +162,7 @@ export function SitesComparisonPanel() {
             {getProjectKpisForCity(drillCity).map((p) => (
               <div
                 key={p.projectId}
-                className={filtreProjet && p.projectId === filtreProjet ? "projectCardHighlighted" : ""}
+                className={filtreProjects.includes(p.projectId) ? "projectCardHighlighted" : ""}
               >
                 <ProjectCard p={p} metric={metric} />
               </div>

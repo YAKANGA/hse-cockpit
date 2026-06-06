@@ -18,10 +18,10 @@ function TrafficLight({ value, thresholds }: { value: number; thresholds: [numbe
 }
 
 export function ExecutiveDashboard() {
-  const { ville, projet } = useCockpitFilter();
-  const cockpitStats = useMemo(() => getFilteredCockpitStats(ville, projet), [ville, projet]);
+  const { villes, projets } = useCockpitFilter();
+  const cockpitStats = useMemo(() => getFilteredCockpitStats(villes, projets), [villes, projets]);
 
-  const v = ville || undefined;
+  const v = villes.length === 1 ? villes[0] : undefined;
   const trainingSummary = useMemo(() => getTrainingSummary(v),         [v]);
   const causerieSummary = useMemo(() => getCauserieSummary(v),         [v]);
   const duerpSummary    = useMemo(() => getDuerpSummary(v),            [v]);
@@ -57,8 +57,8 @@ export function ExecutiveDashboard() {
     { titre:"Travaux en hauteur sans EPI",     ville:"Bouake",       niveau:"Critique", criticite:48, action:"Arrêt chantier jusqu'à équipement complet" },
   ];
 
-  const topRisques = (ville
-    ? ALL_RISQUES.filter((r) => r.ville === ville)
+  const topRisques = (villes.length
+    ? ALL_RISQUES.filter((r) => villes.includes(r.ville))
     : ALL_RISQUES
   ).slice(0, 3);
 
