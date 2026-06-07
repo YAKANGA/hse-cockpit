@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "recharts";
 import { ANALYSES_ACR, getAcrSummary, type StatutACR } from "@/lib/acr-data";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
+import { isoDateInRange } from "@/lib/date-utils";
 import { CheckCircle2, AlertCircle, Share2, Wrench, Target, TrendingUp } from "lucide-react";
 
 const STATUT_COLOR: Record<StatutACR, string> = {
@@ -25,12 +27,21 @@ export function AcrPanel() {
   const summary  = useMemo(() => getAcrSummary(), []);
   const [selected, setSelected] = useState<string | null>(null);
   const [methodeFilter, setMethodeFilter] = useState("Tous");
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
 
   const methodes = ["Tous", ...Array.from(new Set(ANALYSES_ACR.map((a) => a.methode)))];
 
+  const baseData = useMemo(() =>
+    ANALYSES_ACR.filter((a) =>
+      (!activeSites || activeSites.includes(a.site)) &&
+      isoDateInRange(a.date_evenement, globalFilter.dateDebut, globalFilter.dateFin)
+    ),
+  [activeSites, globalFilter.dateDebut, globalFilter.dateFin]);
+
   const filtered = useMemo(() =>
-    methodeFilter === "Tous" ? ANALYSES_ACR : ANALYSES_ACR.filter((a) => a.methode === methodeFilter),
-  [methodeFilter]);
+    methodeFilter === "Tous" ? baseData : baseData.filter((a) => a.methode === methodeFilter),
+  [baseData, methodeFilter]);
 
   const selectedAnalyse = useMemo(() =>
     selected ? ANALYSES_ACR.find((a) => a.id === selected) : null,
@@ -38,44 +49,44 @@ export function AcrPanel() {
 
   const byType = useMemo(() => {
     const m: Record<string, number> = {};
-    ANALYSES_ACR.forEach((a) => { m[a.type_evenement] = (m[a.type_evenement] ?? 0) + 1; });
+    baseData.forEach((a) => { m[a.type_evenement] = (m[a.type_evenement] ?? 0) + 1; });
     return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, []);
+  }, [baseData]);
 
   const actionStats = useMemo(() => {
-    const all = ANALYSES_ACR.flatMap((a) => a.actions_correctives);
+    const all = baseData.flatMap((a) => a.actions_correctives);
     return {
       total:   all.length,
       realise: all.filter((ac) => ac.statut === "Realise").length,
       enCours: all.filter((ac) => ac.statut === "En cours").length,
       taux:    all.length ? Math.round((all.filter((ac) => ac.statut === "Realise").length / all.length) * 100) : 0,
     };
-  }, []);
+  }, [baseData]);
 
   // Cause type breakdown across all analyses
   const byCauseType = useMemo(() => {
     const m: Record<string, number> = {};
-    ANALYSES_ACR.forEach((a) => {
+    baseData.forEach((a) => {
       a.causes.forEach((c) => { m[c.type] = (m[c.type] ?? 0) + 1; });
     });
     return Object.entries(m).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [baseData]);
 
   // Per-analyse action completion
   const analyseProgress = useMemo(() =>
-    ANALYSES_ACR.map((a) => {
+    baseData.map((a) => {
       const tot = a.actions_correctives.length;
       const ok  = a.actions_correctives.filter((ac) => ac.statut === "Realise").length;
       return { ref:a.evenement_ref.slice(0, 10), taux:tot ? Math.round((ok/tot)*100) : 0, ok, tot };
     }),
-  []);
+  [baseData]);
 
   // By statut pie
   const byStatut = useMemo(() => {
     const m: Record<string, number> = {};
-    ANALYSES_ACR.forEach((a) => { m[a.statut] = (m[a.statut] ?? 0) + 1; });
+    baseData.forEach((a) => { m[a.statut] = (m[a.statut] ?? 0) + 1; });
     return Object.entries(m).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [baseData]);
 
   const tauxActions = actionStats.taux;
 

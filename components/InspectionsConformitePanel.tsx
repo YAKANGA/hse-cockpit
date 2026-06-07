@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 
 type ThemeRow = {
   theme: string;
@@ -55,6 +56,7 @@ const PERIODS: { label: string; value: Period }[] = [
 export function InspectionsConformitePanel() {
   const [mounted, setMounted] = useState(false);
   const [period, setPeriod] = useState<Period>("6m");
+  useCockpitFilter();
   useEffect(() => { setMounted(true); }, []);
 
   const trendData = useMemo(() => {

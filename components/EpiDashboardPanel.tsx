@@ -7,6 +7,8 @@ import {
 } from "recharts";
 import { ppeRecords } from "@/lib/ppe-data";
 import { AlertTriangle, CheckCircle2, Package, Clock } from "lucide-react";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { isoDateInRange } from "@/lib/date-utils";
 
 const TODAY = new Date("2026-06-04");
 
@@ -20,17 +22,22 @@ const ALL_CATS = ["Toutes", ...Array.from(new Set(ppeRecords.map((r) => r.catego
 export function EpiDashboardPanel() {
   const [mounted, setMounted] = useState(false);
   const [catFilter, setCatFilter] = useState("Toutes");
+  const { dateDebut, dateFin } = useCockpitFilter();
   useEffect(() => { setMounted(true); }, []);
 
+  const baseRecords = useMemo(() =>
+    ppeRecords.filter((r) => isoDateInRange(r.dateAchat, dateDebut, dateFin)),
+  [dateDebut, dateFin]);
+
   const enriched = useMemo(() =>
-    ppeRecords
+    baseRecords
       .filter((r) => catFilter === "Toutes" || r.categorie === catFilter)
       .map((r) => ({
         ...r,
         daysLeft:  daysDiff(r.dateExpiration),
         tauxDispo: r.quantiteStock > 0 ? Math.round((r.quantiteDisponible / r.quantiteStock) * 100) : 0,
       })),
-  [catFilter]);
+  [baseRecords, catFilter]);
 
   const expired      = enriched.filter((r) => r.daysLeft < 0);
   const expiringSoon = enriched.filter((r) => r.daysLeft >= 0 && r.daysLeft <= 30);

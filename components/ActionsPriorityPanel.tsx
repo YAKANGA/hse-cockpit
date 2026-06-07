@@ -6,6 +6,8 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine,
 } from "recharts";
 import { AlertCircle, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
+import { dateInRange } from "@/lib/date-utils";
 
 type ActionRow = {
   label:       string;
@@ -37,56 +39,59 @@ const STATUS_COLOR: Record<string, string> = {
   Clos:"#0f766e", "En cours":"#2563eb", Ouvert:"#b45309", "En retard":"#c2410c",
 };
 
-const SITES = ["Tous", ...Array.from(new Set(ACTIONS.map((a) => a.site)))];
-
 export function ActionsPriorityPanel() {
   const [mounted, setMounted] = useState(false);
-  const [siteFilter, setSiteFilter] = useState("Tous");
   const [prioriteFilter, setPrioriteFilter] = useState<string>("Toutes");
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   useEffect(() => { setMounted(true); }, []);
 
-  const filtered = useMemo(() =>
+  const baseData = useMemo(() =>
     ACTIONS.filter((a) =>
-      (siteFilter === "Tous"      || a.site === siteFilter) &&
-      (prioriteFilter === "Toutes"|| a.priorite === prioriteFilter)
+      (!activeSites || activeSites.includes(a.site)) &&
+      dateInRange(a.echeance, globalFilter.dateDebut, globalFilter.dateFin)
     ),
-  [siteFilter, prioriteFilter]);
+  [activeSites, globalFilter.dateDebut, globalFilter.dateFin]);
+
+  const filtered = useMemo(() =>
+    baseData.filter((a) => prioriteFilter === "Toutes" || a.priorite === prioriteFilter),
+  [baseData, prioriteFilter]);
 
   const byPriority = useMemo(() =>
     PRIORITY_ORDER.map((p) => {
-      const items = ACTIONS.filter((a) => a.priorite === p);
+      const items = baseData.filter((a) => a.priorite === p);
       const clos    = items.filter((a) => a.statut === "Clos").length;
       const retard  = items.filter((a) => a.statut === "En retard").length;
       const enCours = items.filter((a) => a.statut === "En cours").length;
       return { priorite:p, total:items.length, clos, retard, enCours, ouvert:items.filter((a) => a.statut === "Ouvert").length,
         txCloture:items.length ? Math.round((clos/items.length)*100) : 0 };
     }),
-  []);
+  [baseData]);
 
   const byStatus = useMemo(() => {
     const m: Record<string, number> = {};
-    ACTIONS.forEach((a) => { m[a.statut] = (m[a.statut] ?? 0) + 1; });
+    baseData.forEach((a) => { m[a.statut] = (m[a.statut] ?? 0) + 1; });
     return Object.entries(m).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [baseData]);
 
   const bySiteStatut = useMemo(() => {
     const m: Record<string, Record<string, number>> = {};
-    ACTIONS.forEach((a) => {
+    baseData.forEach((a) => {
       if (!m[a.site]) m[a.site] = { Clos:0, "En cours":0, Ouvert:0, "En retard":0 };
       m[a.site][a.statut]++;
     });
     return Object.entries(m).map(([site, v]) => ({ site, ...v }));
-  }, []);
+  }, [baseData]);
 
-  const overdueActions = useMemo(() => ACTIONS.filter((a) => a.statut === "En retard"), []);
-  const tauxCloture    = Math.round((ACTIONS.filter((a) => a.statut === "Clos").length / ACTIONS.length) * 100);
-  const critiquesOuvertes = ACTIONS.filter((a) => a.priorite === "Critique" && a.statut !== "Clos").length;
+  const overdueActions = useMemo(() => baseData.filter((a) => a.statut === "En retard"), [baseData]);
+  const tauxCloture    = baseData.length ? Math.round((baseData.filter((a) => a.statut === "Clos").length / baseData.length) * 100) : 0;
+  const critiquesOuvertes = baseData.filter((a) => a.priorite === "Critique" && a.statut !== "Clos").length;
 
   const kpis = [
-    { label:"Actions totales",    val:ACTIONS.length,         color:"#0f766e", icon:CheckCircle2, sub:`${tauxCloture}% clôturées` },
+    { label:"Actions totales",    val:baseData.length,        color:"#0f766e", icon:CheckCircle2, sub:`${tauxCloture}% clôturées` },
     { label:"En retard",          val:overdueActions.length,  color:"#dc2626", icon:AlertCircle,  sub:"dépassement échéance" },
     { label:"Critiques ouvertes", val:critiquesOuvertes,      color:"#c2410c", icon:AlertTriangle, sub:"priorité maximale" },
-    { label:"En cours",           val:ACTIONS.filter((a) => a.statut === "En cours").length, color:"#2563eb", icon:Clock, sub:"en exécution" },
+    { label:"En cours",           val:baseData.filter((a) => a.statut === "En cours").length, color:"#2563eb", icon:Clock, sub:"en exécution" },
   ];
 
   return (
@@ -95,11 +100,6 @@ export function ActionsPriorityPanel() {
         <div>
           <h2>Pilotage des Actions Correctives &amp; Préventives</h2>
           <p>{overdueActions.length} action{overdueActions.length > 1 ? "s" : ""} en retard — taux de clôture : {tauxCloture}% (objectif 85%).</p>
-        </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} style={{ padding:"4px 8px", borderRadius:6, border:"1px solid var(--line)", fontSize:12 }}>
-            {SITES.map((s) => <option key={s}>{s}</option>)}
-          </select>
         </div>
       </div>
 

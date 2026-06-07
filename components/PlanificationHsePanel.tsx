@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
 import { CheckCircle2, Clock, AlertCircle, Calendar } from "lucide-react";
 
 type StatutActivite = "Realisee" | "En cours" | "Planifiee" | "En retard";
@@ -63,26 +64,34 @@ const TRIMESTRES: (Trimestre | "Tous")[] = ["Tous", "T1", "T2", "T3", "T4"];
 export function PlanificationHsePanel() {
   const [trimestre, setTrimestre] = useState<Trimestre | "Tous">("Tous");
   const [categorie, setCategorie] = useState("Toutes");
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
+
+  const baseData = useMemo(() =>
+    PLAN_ANNUEL.filter((p) =>
+      !activeSites || p.site === "Tous" || activeSites.includes(p.site)
+    ),
+  [activeSites]);
 
   const filtered = useMemo(() =>
-    PLAN_ANNUEL.filter((p) =>
+    baseData.filter((p) =>
       (trimestre === "Tous" || p.trimestre === trimestre) &&
       (categorie === "Toutes" || p.categorie === categorie)
     ),
-    [trimestre, categorie]
+    [baseData, trimestre, categorie]
   );
 
   const summary = useMemo(() => ({
-    total:     PLAN_ANNUEL.length,
-    realisees: PLAN_ANNUEL.filter((p) => p.statut === "Realisee").length,
-    enRetard:  PLAN_ANNUEL.filter((p) => p.statut === "En retard").length,
-    taux:      Math.round(PLAN_ANNUEL.filter((p) => p.statut === "Realisee").length / PLAN_ANNUEL.length * 100),
-    budgetTotal:   PLAN_ANNUEL.reduce((s, p) => s + p.budget_fcfa, 0),
-    budgetConsomme:PLAN_ANNUEL.filter((p) => p.statut === "Realisee").reduce((s, p) => s + p.budget_fcfa, 0),
-  }), []);
+    total:     baseData.length,
+    realisees: baseData.filter((p) => p.statut === "Realisee").length,
+    enRetard:  baseData.filter((p) => p.statut === "En retard").length,
+    taux:      baseData.length ? Math.round(baseData.filter((p) => p.statut === "Realisee").length / baseData.length * 100) : 0,
+    budgetTotal:   baseData.reduce((s, p) => s + p.budget_fcfa, 0),
+    budgetConsomme:baseData.filter((p) => p.statut === "Realisee").reduce((s, p) => s + p.budget_fcfa, 0),
+  }), [baseData]);
 
   const byTrimestre = useMemo(() => (["T1","T2","T3","T4"] as Trimestre[]).map((t) => {
-    const items = PLAN_ANNUEL.filter((p) => p.trimestre === t);
+    const items = baseData.filter((p) => p.trimestre === t);
     return {
       trimestre: t,
       realisees: items.filter((p) => p.statut === "Realisee").length,
@@ -90,7 +99,7 @@ export function PlanificationHsePanel() {
       planifiees:items.filter((p) => p.statut === "Planifiee").length,
       enRetard:  items.filter((p) => p.statut === "En retard").length,
     };
-  }), []);
+  }), [baseData]);
 
   const budgetConsomme = Math.round((summary.budgetConsomme / summary.budgetTotal) * 100);
 
@@ -106,7 +115,7 @@ export function PlanificationHsePanel() {
       <div className="planifKpis">
         {[
           { label:"Réalisées",           val:summary.realisees, sub:`${summary.taux}%`,             color:"#16a34a" },
-          { label:"En cours",            val:PLAN_ANNUEL.filter((p) => p.statut === "En cours").length, sub:"en exécution", color:"#2563eb" },
+          { label:"En cours",            val:baseData.filter((p) => p.statut === "En cours").length, sub:"en exécution", color:"#2563eb" },
           { label:"En retard",           val:summary.enRetard,  sub:"action requise",               color:"#dc2626" },
           { label:"Budget consommé",     val:`${budgetConsomme}%`, sub:`${(summary.budgetConsomme/1000000).toFixed(1)}M FCFA`, color:"#0f766e" },
         ].map(({ label, val, sub, color }) => (

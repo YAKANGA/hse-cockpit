@@ -6,6 +6,8 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { AlertTriangle, CheckCircle2, Clock, ShieldOff, ShieldCheck } from "lucide-react";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
+import { dateInRange } from "@/lib/date-utils";
 
 type Permis = {
   id:            string;
@@ -45,49 +47,51 @@ const STATUS_ICON: Record<string, React.ElementType> = {
   "En attente": ShieldOff,
 };
 const TYPE_COLORS = ["#0f766e","#2563eb","#c2410c","#7c3aed","#b45309"];
-const SITES       = ["Tous", ...Array.from(new Set(PERMIS.map((p) => p.site)))];
-
 export function PermisStatusPanel() {
   const [mounted, setMounted] = useState(false);
   const [filter, setFilter]   = useState<string>("Tous");
-  const [site,   setSite]     = useState<string>("Tous");
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   useEffect(() => { setMounted(true); }, []);
 
-  const siteFiltered = useMemo(() =>
-    site === "Tous" ? PERMIS : PERMIS.filter((p) => p.site === site),
-  [site]);
+  const baseData = useMemo(() =>
+    PERMIS.filter((p) =>
+      (!activeSites || activeSites.includes(p.site)) &&
+      dateInRange(p.debut, globalFilter.dateDebut, globalFilter.dateFin)
+    ),
+  [activeSites, globalFilter.dateDebut, globalFilter.dateFin]);
 
   const filtered = useMemo(() =>
-    filter === "Tous" ? siteFiltered : siteFiltered.filter((p) => p.statut === filter),
-  [filter, siteFiltered]);
+    filter === "Tous" ? baseData : baseData.filter((p) => p.statut === filter),
+  [filter, baseData]);
 
   const byType = useMemo(() => {
     const m: Record<string, number> = {};
-    siteFiltered.forEach((p) => { m[p.type] = (m[p.type] ?? 0) + 1; });
+    baseData.forEach((p) => { m[p.type] = (m[p.type] ?? 0) + 1; });
     return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [siteFiltered]);
+  }, [baseData]);
 
   const byStatus = useMemo(() => {
     const m: Record<string, number> = {};
-    siteFiltered.forEach((p) => { m[p.statut] = (m[p.statut] ?? 0) + 1; });
+    baseData.forEach((p) => { m[p.statut] = (m[p.statut] ?? 0) + 1; });
     return Object.entries(m).map(([name, value]) => ({ name, value }));
-  }, [siteFiltered]);
+  }, [baseData]);
 
   const bySiteStatut = useMemo(() => {
     const m: Record<string, Record<string, number>> = {};
-    PERMIS.forEach((p) => {
+    baseData.forEach((p) => {
       if (!m[p.site]) m[p.site] = { Actif:0, Expire:0, Cloture:0, "En attente":0 };
       m[p.site][p.statut]++;
     });
     return Object.entries(m).map(([s, v]) => ({ site:s, ...v }));
-  }, []);
+  }, [baseData]);
 
-  const withoutHse = siteFiltered.filter((p) => !p.validationHse);
-  const actifs     = PERMIS.filter((p) => p.statut === "Actif").length;
-  const expires    = PERMIS.filter((p) => p.statut === "Expire").length;
-  const enAttente  = PERMIS.filter((p) => p.statut === "En attente").length;
-  const cloturesCnt= PERMIS.filter((p) => p.statut === "Cloture").length;
-  const tauxValide = Math.round(((PERMIS.length - withoutHse.length) / PERMIS.length) * 100);
+  const withoutHse = baseData.filter((p) => !p.validationHse);
+  const actifs     = baseData.filter((p) => p.statut === "Actif").length;
+  const expires    = baseData.filter((p) => p.statut === "Expire").length;
+  const enAttente  = baseData.filter((p) => p.statut === "En attente").length;
+  const cloturesCnt= baseData.filter((p) => p.statut === "Cloture").length;
+  const tauxValide = baseData.length ? Math.round(((baseData.length - withoutHse.length) / baseData.length) * 100) : 0;
 
   const kpis: [string, number, string, string, React.ElementType][] = [
     ["Actifs",            actifs,      "en cours d'exécution", "#0f766e", CheckCircle2],
@@ -95,7 +99,7 @@ export function PermisStatusPanel() {
     ["En attente HSE",    enAttente,   "validation requise",   "#d97706", ShieldOff],
     ["Clôturés",          cloturesCnt, "sur la période",       "#64748b", Clock],
     ["Sans validation",   withoutHse.length, "bloquer avant travaux","#dc2626", ShieldOff],
-    ["Validation HSE",    PERMIS.length - withoutHse.length, `${tauxValide}% du total`, "#0f766e", ShieldCheck],
+    ["Validation HSE",    baseData.length - withoutHse.length, `${tauxValide}% du total`, "#0f766e", ShieldCheck],
   ];
 
   return (
@@ -104,13 +108,6 @@ export function PermisStatusPanel() {
         <div>
           <h2>Suivi des Permis de Travaux Dangereux</h2>
           <p>{actifs} actif{actifs > 1 ? "s" : ""} — {expires} expiré{expires > 1 ? "s" : ""} — {withoutHse.length} sans validation HSE — {enAttente} en attente.</p>
-        </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <label style={{ fontSize:12, color:"var(--muted)" }}>Site :</label>
-          <select value={site} onChange={(e) => { setSite(e.target.value); setFilter("Tous"); }}
-            style={{ padding:"4px 8px", borderRadius:6, border:"1px solid var(--line)", fontSize:12 }}>
-            {SITES.map((s) => <option key={s}>{s}</option>)}
-          </select>
         </div>
       </div>
 

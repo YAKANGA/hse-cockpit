@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 
 type MonthlyRow = {
   mois: string;
@@ -52,6 +53,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 export function IndicateursTFTGDashboard() {
   const [mounted, setMounted] = useState(false);
+  useCockpitFilter();
   const [hasRealData, setHasRealData] = useState(false);
   const [sourceData, setSourceData] = useState(MONTHLY_DATA);
 

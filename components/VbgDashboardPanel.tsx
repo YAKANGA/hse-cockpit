@@ -13,6 +13,8 @@ import {
   getVbgBySite, getVbgByType, getVbgFormationBySite, getVbgSummary,
   vbgCodeConduite, vbgFormations, vbgIncidents, vbgPlanAction, vbgPlaintes,
 } from "@/lib/vbg-data";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
+import { isoDateInRange } from "@/lib/date-utils";
 
 const COULEURS_STATUT: Record<string, string> = {
   "Clôturé":         "#16a34a",
@@ -45,12 +47,21 @@ export function VbgDashboardPanel() {
   const byType  = useMemo(() => getVbgByType(), []);
   const bySite  = useMemo(() => getVbgBySite(), []);
   const formBySite = useMemo(() => getVbgFormationBySite(), []);
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
+
+  const filteredIncidents = useMemo(() =>
+    vbgIncidents.filter((i) =>
+      (!activeSites || activeSites.includes(i.site)) &&
+      isoDateInRange(i.date, globalFilter.dateDebut, globalFilter.dateFin)
+    ),
+  [activeSites, globalFilter.dateDebut, globalFilter.dateFin]);
 
   const pieStatut = useMemo(() => {
     const map: Record<string, number> = {};
-    vbgIncidents.forEach((i) => { map[i.statut] = (map[i.statut] ?? 0) + 1; });
+    filteredIncidents.forEach((i) => { map[i.statut] = (map[i.statut] ?? 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [filteredIncidents]);
 
   const planByStatut = useMemo(() => {
     const map: Record<string, number> = {};
@@ -175,7 +186,7 @@ export function VbgDashboardPanel() {
                 </tr>
               </thead>
               <tbody>
-                {vbgIncidents.map((i) => (
+                {filteredIncidents.map((i) => (
                   <tr key={i.id}>
                     <td><strong>{i.reference}</strong></td>
                     <td>{i.date}</td>

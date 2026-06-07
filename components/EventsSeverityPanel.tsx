@@ -6,6 +6,7 @@ import {
   Legend, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine,
 } from "recharts";
 import { AlertTriangle, TrendingDown, Activity, Target } from "lucide-react";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
 
 type EventRow = {
   type:    "Accident" | "Incident" | "Presqu'accident";
@@ -44,16 +45,15 @@ const TYPE_COLOR: Record<string, string> = {
   "Presqu'accident": "#2563eb",
 };
 
-const SITES = ["Tous", ...Array.from(new Set(EVENTS.map((e) => e.site)))];
-
 export function EventsSeverityPanel() {
   const [mounted, setMounted] = useState(false);
-  const [siteFilter, setSiteFilter] = useState("Tous");
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   useEffect(() => { setMounted(true); }, []);
 
   const filtered = useMemo(() =>
-    siteFilter === "Tous" ? EVENTS : EVENTS.filter((e) => e.site === siteFilter),
-  [siteFilter]);
+    EVENTS.filter((e) => !activeSites || activeSites.includes(e.site)),
+  [activeSites]);
 
   const pyramidData = useMemo(() => [
     { name:"Accidents",       value:filtered.filter((e) => e.type === "Accident").length,        fill:"#c2410c" },
@@ -109,12 +109,6 @@ export function EventsSeverityPanel() {
         <div>
           <h2>Pyramide des Événements HSE</h2>
           <p>{filtered.length} événements déclarés — {criticalCount} de gravité élevée/critique — ratio Heinrich : {heinrichRatio} presqu'accidents/accident.</p>
-        </div>
-        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-          <label style={{ fontSize:12, color:"var(--muted)" }}>Site :</label>
-          <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} style={{ padding:"4px 8px", borderRadius:6, border:"1px solid var(--line)", fontSize:12 }}>
-            {SITES.map((s) => <option key={s}>{s}</option>)}
-          </select>
         </div>
       </div>
 

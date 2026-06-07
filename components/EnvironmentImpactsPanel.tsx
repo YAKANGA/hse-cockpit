@@ -22,6 +22,7 @@ import {
   getEnvSummary,
   type NiveauImportance,
 } from "@/lib/environment-data";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 
 const CHANTIERS = ["Tous", ...Array.from(new Set(IMPACTS_ENV.map((i) => i.codeChantier)))];
 const PHASES = ["Tous", "Preparation", "Construction", "Exploitation"];
@@ -45,6 +46,7 @@ export function EnvironmentImpactsPanel() {
   const [chantier, setChantier] = useState("Tous");
   const [phase, setPhase] = useState("Tous");
   const [niveau, setNiveau] = useState<NiveauImportance | "Tous">("Tous");
+  useCockpitFilter();
 
   useEffect(() => { setMounted(true); }, []);
 

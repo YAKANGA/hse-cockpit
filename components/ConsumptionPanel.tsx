@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine } from "recharts";
 import { CONSOMMATIONS, getConsommationSummary, getConsommationParMois } from "@/lib/consumption-data";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
+import { isoDateInRange } from "@/lib/date-utils";
 import { Droplets, Zap, Fuel, Trash2, Wind, TrendingUp, TrendingDown, Minus } from "lucide-react";
-
-const SITES = ["Tous", ...Array.from(new Set(CONSOMMATIONS.map((c) => c.site)))];
 
 type MetricKey = "eau_m3" | "electricite_kwh" | "carburant_litres" | "co2_tonnes";
 
@@ -24,13 +24,21 @@ function PerfIcon({ perf }: { perf: number }) {
 
 export function ConsumptionPanel() {
   const summary = useMemo(() => getConsommationSummary(), []);
-  const parMois = useMemo(() => getConsommationParMois(), []);
-  const [site,   setSite]   = useState("Tous");
+  const allParMois = useMemo(() => getConsommationParMois(), []);
   const [metric, setMetric] = useState<MetricKey>("eau_m3");
+  const globalFilter = useCockpitFilter();
+  const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
 
   const srcData = useMemo(() =>
-    site === "Tous" ? CONSOMMATIONS : CONSOMMATIONS.filter((c) => c.site === site),
-  [site]);
+    CONSOMMATIONS.filter((c) =>
+      (!activeSites || activeSites.includes(c.site)) &&
+      isoDateInRange(c.mois, globalFilter.dateDebut, globalFilter.dateFin)
+    ),
+  [activeSites, globalFilter.dateDebut, globalFilter.dateFin]);
+
+  const parMois = useMemo(() =>
+    allParMois.filter((m) => isoDateInRange(m.mois, globalFilter.dateDebut, globalFilter.dateFin)),
+  [allParMois, globalFilter.dateDebut, globalFilter.dateFin]);
 
   const bySite = useMemo(() => {
     const m: Record<string, { eau:number; elec:number; carb:number; co2:number; dechets:number }> = {};
@@ -84,12 +92,6 @@ export function ConsumptionPanel() {
         <div>
           <h2>Consommations Environnementales &amp; Émissions CO₂</h2>
           <p>{summary.sites} sites — {summary.mois} mois — {summary.co2.toFixed(1)} t CO₂ cumulées — suivi vs objectifs.</p>
-        </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <label style={{ fontSize:12, color:"var(--muted)" }}>Site :</label>
-          <select value={site} onChange={(e) => setSite(e.target.value)} style={{ padding:"4px 8px", borderRadius:6, border:"1px solid var(--line)", fontSize:12 }}>
-            {SITES.map((s) => <option key={s}>{s}</option>)}
-          </select>
         </div>
       </div>
 
