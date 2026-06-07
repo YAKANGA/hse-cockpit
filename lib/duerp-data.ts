@@ -54,7 +54,7 @@ export function getDuerpSummary(ville?: string, dateDebut?: string, dateFin?: st
       return true;
     });
   }
-  const total        = src.length || 1;
+  const total        = src.length;
   const critique     = src.filter((r) => r.criticite >= 50).length;
   const eleve        = src.filter((r) => r.criticite >= 25 && r.criticite < 50).length;
   const modere       = src.filter((r) => r.criticite >= 10 && r.criticite < 25).length;
@@ -62,6 +62,6 @@ export function getDuerpSummary(ville?: string, dateDebut?: string, dateFin?: st
   const maitrise     = src.filter((r) => r.statut === "Maitrise").length;
   const nonTraite    = src.filter((r) => r.statut === "Non traite").length;
   const criticiteMax = src.length > 0 ? Math.max(...src.map((r) => r.criticite)) : 0;
-  const tauxMaitrise = Math.round((maitrise / total) * 100);
+  const tauxMaitrise = total === 0 ? 0 : Math.round((maitrise / total) * 100);
   return { total, critique, eleve, modere, acceptable, maitrise, nonTraite, criticiteMax, tauxMaitrise };
 }

@@ -51,7 +51,7 @@ export function getMedicalSummary(ville?: string, dateDebut?: string, dateFin?: 
     });
   }
   const today = new Date().toISOString().slice(0, 10);
-  const total         = src.length || 1;
+  const total         = src.length;
   const aptes         = src.filter((v) => v.aptitude === "Apte").length;
   const avecRestrictions = src.filter((v) => v.aptitude === "Apte avec restrictions").length;
   const inaptes       = src.filter((v) => v.aptitude.startsWith("Inapte")).length;
@@ -60,6 +60,6 @@ export function getMedicalSummary(ville?: string, dateDebut?: string, dateFin?: 
     const d30 = new Date(); d30.setDate(d30.getDate() + 30);
     return v.date_prochaine >= today && v.date_prochaine <= d30.toISOString().slice(0, 10);
   }).length;
-  const tauxAJour     = Math.round(((total - enRetard) / total) * 100);
+  const tauxAJour     = total === 0 ? 0 : Math.round(((total - enRetard) / total) * 100);
   return { total, aptes, avecRestrictions, inaptes, enRetard, aVenir30j, tauxAJour };
 }

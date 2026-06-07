@@ -50,12 +50,12 @@ export function getTrainingSummary(ville?: string, dateDebut?: string, dateFin?:
       return true;
     });
   }
-  const total       = src.length || 1;
+  const total       = src.length;
   const valide      = src.filter((h) => h.statut === "Valide").length;
   const expire      = src.filter((h) => h.statut === "Expire").length;
   const aRenouveler = src.filter((h) => h.statut === "A renouveler").length;
   const enCours     = src.filter((h) => h.statut === "En cours").length;
-  const tauxAJour   = Math.round((valide / total) * 100);
+  const tauxAJour   = total === 0 ? 0 : Math.round((valide / total) * 100);
   const sites       = new Set(src.map((h) => h.site)).size;
   const types       = new Set(src.map((h) => h.type)).size;
   return { total, valide, expire, aRenouveler, enCours, tauxAJour, sites, types };

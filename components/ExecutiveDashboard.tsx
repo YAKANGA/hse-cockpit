@@ -25,11 +25,11 @@ export function ExecutiveDashboard() {
   );
 
   const v = villes.length === 1 ? villes[0] : undefined;
-  const trainingSummary = useMemo(() => getTrainingSummary(v),    [v]);
-  const causerieSummary = useMemo(() => getCauserieSummary(v),    [v]);
-  const duerpSummary    = useMemo(() => getDuerpSummary(v),       [v]);
-  const medicalSummary  = useMemo(() => getMedicalSummary(v),     [v]);
-  const consoSummary    = useMemo(() => getConsommationSummary(v),[v]);
+  const trainingSummary = useMemo(() => getTrainingSummary(v, dateDebut, dateFin),    [v, dateDebut, dateFin]);
+  const causerieSummary = useMemo(() => getCauserieSummary(v, dateDebut, dateFin),    [v, dateDebut, dateFin]);
+  const duerpSummary    = useMemo(() => getDuerpSummary(v, dateDebut, dateFin),       [v, dateDebut, dateFin]);
+  const medicalSummary  = useMemo(() => getMedicalSummary(v, dateDebut, dateFin),     [v, dateDebut, dateFin]);
+  const consoSummary    = useMemo(() => getConsommationSummary(v, dateDebut, dateFin),[v, dateDebut, dateFin]);
 
   const isFiltered = cockpitStats.isFiltered;
 

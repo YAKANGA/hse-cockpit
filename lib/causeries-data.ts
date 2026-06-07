@@ -45,10 +45,10 @@ export function getCauserieSummary(ville?: string, dateDebut?: string, dateFin?:
       return true;
     });
   }
-  const total             = src.length || 1;
+  const total             = src.length;
   const totalParticipants = src.reduce((s, c) => s + c.nb_participants, 0);
-  const totalPrevus       = src.reduce((s, c) => s + c.nb_prevus, 0) || 1;
-  const tauxParticipation = Math.round((totalParticipants / totalPrevus) * 100);
+  const totalPrevus       = src.reduce((s, c) => s + c.nb_prevus, 0);
+  const tauxParticipation = totalPrevus === 0 ? 0 : Math.round((totalParticipants / totalPrevus) * 100);
   const sites             = new Set(src.map((c) => c.site)).size;
   const themes            = new Set(src.map((c) => c.theme)).size;
   const objectifMensuel   = 20;
