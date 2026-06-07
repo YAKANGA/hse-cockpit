@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, MapPin, Search } from "lucide-react";
 import type { ModuleRecord } from "@/lib/module-records-data";
+import { useCockpitFilter, dateInRange } from "@/lib/use-cockpit-filter";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -20,6 +21,11 @@ export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRec
   const [status, setStatus]   = useState("Tous");
   const [page, setPage]       = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  const { villes, projets, dateDebut, dateFin } = useCockpitFilter();
+  const cockpitHasCity = villes.length > 0;
+  const cockpitHasProj = projets.length > 0;
+  const cockpitHasDate = !!(dateDebut || dateFin);
 
   useEffect(() => { setLiveRecords(records); }, [records]);
 
@@ -60,12 +66,14 @@ export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRec
       const matchQuery = q
         ? [r.label, r.category, r.owner, r.entity, r.priority, r.projectName, r.site].join(" ").toLowerCase().includes(q)
         : true;
-      const matchCity    = city === "Tous"    || r.site        === city;
-      const matchProject = project === "Tous" || r.projectName === project;
-      const matchStatus  = status === "Tous"  || r.status      === status;
-      return matchQuery && matchCity && matchProject && matchStatus;
+      // Cockpit prend la priorité sur les dropdowns locaux
+      const matchCity    = cockpitHasCity ? villes.includes(r.site)        : city === "Tous"    || r.site        === city;
+      const matchProject = cockpitHasProj ? projets.includes(r.projectId)  : project === "Tous" || r.projectName === project;
+      const matchStatus  = status === "Tous" || r.status === status;
+      const matchDate    = cockpitHasDate ? dateInRange(r.date, dateDebut, dateFin) : true;
+      return matchQuery && matchCity && matchProject && matchStatus && matchDate;
     });
-  }, [liveRecords, query, city, project, status]);
+  }, [liveRecords, query, city, project, status, villes, projets, dateDebut, dateFin, cockpitHasCity, cockpitHasProj, cockpitHasDate]);
 
   const totalPages   = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage     = Math.min(page, totalPages);
@@ -99,6 +107,11 @@ export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRec
         <span><strong>{projectCount}</strong> projet(s)</span>
       </div>
 
+      {(cockpitHasCity || cockpitHasProj || cockpitHasDate) && (
+        <div style={{ fontSize:12, color:"#0f766e", background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:6, padding:"6px 12px", marginBottom:8 }}>
+          Filtres cockpit actifs —{cockpitHasCity ? ` Villes : ${villes.join(", ")}` : ""}{cockpitHasProj ? ` · Projets : ${projets.join(", ")}` : ""}{cockpitHasDate ? ` · Période : ${dateDebut ? dateDebut.split("-").reverse().join("/") : "…"} – ${dateFin ? dateFin.split("-").reverse().join("/") : "…"}` : ""}. Les filtres locaux correspondants sont ignorés.
+        </div>
+      )}
       <div className="filterBar moduleDashboardFilters recordsFilterBar">
         <label className="filterSearch">
           <Search size={17} />
@@ -108,15 +121,15 @@ export function ModuleRecordsExplorer({ moduleId, records, tenantId }: ModuleRec
             onChange={(e) => setQuery(e.target.value)}
           />
         </label>
-        <label>
-          Ville
-          <select value={city} onChange={(e) => setCity(e.target.value)}>
+        <label style={{ opacity: cockpitHasCity ? 0.4 : 1 }}>
+          Ville{cockpitHasCity ? " (cockpit)" : ""}
+          <select value={city} onChange={(e) => setCity(e.target.value)} disabled={cockpitHasCity}>
             {cities.map((c) => <option key={c}>{c}</option>)}
           </select>
         </label>
-        <label>
-          Projet
-          <select value={project} onChange={(e) => setProject(e.target.value)}>
+        <label style={{ opacity: cockpitHasProj ? 0.4 : 1 }}>
+          Projet{cockpitHasProj ? " (cockpit)" : ""}
+          <select value={project} onChange={(e) => setProject(e.target.value)} disabled={cockpitHasProj}>
             {projectsForCity.map((p) => <option key={p}>{p}</option>)}
           </select>
         </label>
