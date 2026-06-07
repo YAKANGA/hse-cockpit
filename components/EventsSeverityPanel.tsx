@@ -45,15 +45,31 @@ const TYPE_COLOR: Record<string, string> = {
   "Presqu'accident": "#2563eb",
 };
 
+const MONTH_ISO: Record<string, string> = {
+  "Jan":"2026-01","Fev":"2026-02","Mar":"2026-03",
+  "Avr":"2026-04","Mai":"2026-05","Juin":"2026-06",
+};
+
 export function EventsSeverityPanel() {
   const [mounted, setMounted] = useState(false);
   const globalFilter = useCockpitFilter();
+  const { dateDebut, dateFin } = globalFilter;
   const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   useEffect(() => { setMounted(true); }, []);
 
-  const filtered = useMemo(() =>
-    EVENTS.filter((e) => !activeSites || activeSites.includes(e.site)),
-  [activeSites]);
+  const filtered = useMemo(() => {
+    const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
+    const finMois   = dateFin   ? dateFin.slice(0, 7)   : undefined;
+    return EVENTS.filter((e) => {
+      if (activeSites && !activeSites.includes(e.site)) return false;
+      if (debutMois || finMois) {
+        const miso = MONTH_ISO[e.mois] ?? "2026-01";
+        if (debutMois && miso < debutMois) return false;
+        if (finMois   && miso > finMois)   return false;
+      }
+      return true;
+    });
+  }, [activeSites, dateDebut, dateFin]);
 
   const pyramidData = useMemo(() => [
     { name:"Accidents",       value:filtered.filter((e) => e.type === "Accident").length,        fill:"#c2410c" },
@@ -73,12 +89,12 @@ export function EventsSeverityPanel() {
 
   const bySiteType = useMemo(() => {
     const m: Record<string, Record<string, number>> = {};
-    EVENTS.forEach((e) => {
+    filtered.forEach((e) => {
       if (!m[e.site]) m[e.site] = { Accident:0, Incident:0, "Presqu'accident":0 };
       m[e.site][e.type]++;
     });
     return Object.entries(m).map(([site, counts]) => ({ site, ...counts }));
-  }, []);
+  }, [filtered]);
 
   // Monthly trend
   const monthlyTrend = useMemo(() => {

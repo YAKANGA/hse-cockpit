@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import type { ModuleDashboardData } from "@/lib/module-dashboard-data";
+import { useCockpitFilter } from "@/lib/use-cockpit-filter";
 
 const palette = ["#0f766e", "#2563eb", "#c2410c", "#7c3aed", "#b45309", "#047857"];
 
@@ -29,6 +30,7 @@ export function ModuleDashboardCharts({ data, accent }: ModuleDashboardChartsPro
   const [periodRange, setPeriodRange] = useState("6");
   const [selectedSite, setSelectedSite] = useState("Tous");
   const [selectedStatus, setSelectedStatus] = useState("Tous");
+  const { villes, dateDebut, dateFin } = useCockpitFilter();
 
   useEffect(() => {
     setMounted(true);
@@ -39,13 +41,34 @@ export function ModuleDashboardCharts({ data, accent }: ModuleDashboardChartsPro
     () => ["Tous", ...Array.from(new Set(data.table.map((row) => String(row.statut))))],
     [data.table],
   );
-  const filteredTrend = useMemo(
-    () => data.trend.slice(periodRange === "3" ? -3 : 0),
-    [data.trend, periodRange],
-  );
+  const filteredTrend = useMemo(() => {
+    let trend = data.trend;
+    if (dateDebut || dateFin) {
+      const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
+      const finMois   = dateFin   ? dateFin.slice(0, 7)   : undefined;
+      const PERIOD_ISO: Record<string, string> = {
+        "Jan":"2026-01","Fev":"2026-02","Mar":"2026-03",
+        "Avr":"2026-04","Mai":"2026-05","Juin":"2026-06",
+        "Juil":"2026-07","Aout":"2026-08","Sep":"2026-09",
+        "Oct":"2026-10","Nov":"2026-11","Dec":"2026-12",
+      };
+      trend = trend.filter((t) => {
+        const miso = PERIOD_ISO[String(t.period)];
+        if (!miso) return true;
+        if (debutMois && miso < debutMois) return false;
+        if (finMois   && miso > finMois)   return false;
+        return true;
+      });
+    }
+    return trend.slice(periodRange === "3" ? -3 : 0);
+  }, [data.trend, periodRange, dateDebut, dateFin]);
+
   const filteredSites = useMemo(
-    () => data.siteComparison.filter((site) => selectedSite === "Tous" || site.site === selectedSite),
-    [data.siteComparison, selectedSite],
+    () => data.siteComparison.filter((site) =>
+      (selectedSite === "Tous" || site.site === selectedSite) &&
+      (!villes.length || villes.includes(site.site))
+    ),
+    [data.siteComparison, selectedSite, villes],
   );
   const filteredTable = useMemo(
     () => data.table.filter((row) => selectedStatus === "Tous" || String(row.statut) === selectedStatus),
