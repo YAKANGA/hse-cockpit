@@ -31,6 +31,42 @@ const EPI_TREND = [
   { month: "Juin",initial: 460, distribues: 364, reste:  96 },
 ];
 
+const EPI_MONTHS = ["Jan","Fev","Mar","Avr","Mai","Juin"] as const;
+const EPI_TREND_SITES: Record<string, { month: string; initial: number; distribues: number; reste: number }[]> = {
+  "Abidjan":      [
+    { month:"Jan",  initial:200, distribues:142, reste: 58 },
+    { month:"Fev",  initial:198, distribues:146, reste: 52 },
+    { month:"Mar",  initial:194, distribues:149, reste: 45 },
+    { month:"Avr",  initial:192, distribues:150, reste: 42 },
+    { month:"Mai",  initial:191, distribues:151, reste: 40 },
+    { month:"Juin", initial:191, distribues:152, reste: 39 },
+  ],
+  "Bouake":       [
+    { month:"Jan",  initial: 96, distribues: 68, reste: 28 },
+    { month:"Fev",  initial: 95, distribues: 70, reste: 25 },
+    { month:"Mar",  initial: 93, distribues: 72, reste: 21 },
+    { month:"Avr",  initial: 92, distribues: 72, reste: 20 },
+    { month:"Mai",  initial: 92, distribues: 73, reste: 19 },
+    { month:"Juin", initial: 92, distribues: 73, reste: 19 },
+  ],
+  "Yamoussoukro": [
+    { month:"Jan",  initial: 72, distribues: 51, reste: 21 },
+    { month:"Fev",  initial: 71, distribues: 53, reste: 18 },
+    { month:"Mar",  initial: 70, distribues: 54, reste: 16 },
+    { month:"Avr",  initial: 69, distribues: 54, reste: 15 },
+    { month:"Mai",  initial: 69, distribues: 55, reste: 14 },
+    { month:"Juin", initial: 69, distribues: 55, reste: 14 },
+  ],
+  "San Pedro":    [
+    { month:"Jan",  initial:112, distribues: 79, reste: 33 },
+    { month:"Fev",  initial:111, distribues: 81, reste: 30 },
+    { month:"Mar",  initial:108, distribues: 83, reste: 25 },
+    { month:"Avr",  initial:109, distribues: 84, reste: 25 },
+    { month:"Mai",  initial:108, distribues: 84, reste: 24 },
+    { month:"Juin", initial:108, distribues: 84, reste: 24 },
+  ],
+};
+
 type Period = "3m" | "6m" | "tout";
 
 export function GlobalSynthesisCharts() {
@@ -55,6 +91,16 @@ export function GlobalSynthesisCharts() {
   }, [period, cockpitStats.filteredTrend]);
 
   const filteredSiteBreakdown = cockpitStats.filteredSites;
+
+  const filteredEpiData = useMemo(() => {
+    if (!villes.length) return EPI_TREND;
+    return EPI_MONTHS.map((month) => ({
+      month,
+      initial:    villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.initial    ?? 0), 0),
+      distribues: villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.distribues ?? 0), 0),
+      reste:      villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.reste      ?? 0), 0),
+    }));
+  }, [villes]);
 
   const moduleRisk = useMemo(
     () =>
@@ -122,7 +168,7 @@ export function GlobalSynthesisCharts() {
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={period === "3m" ? EPI_TREND.slice(-3) : EPI_TREND}
+                  data={period === "3m" ? filteredEpiData.slice(-3) : filteredEpiData}
                   margin={{ top: 4, right: 16, left: -10, bottom: 0 }}
                   barGap={4}
                 >
@@ -176,35 +222,32 @@ export function GlobalSynthesisCharts() {
         </article>
       </div>
 
-      <div className="dashboardGrid" style={{ marginTop: 18 }}>
-        <article className="panel">
-          <div className="panelHeader">
-            <div>
-              <h2>Exposition modules</h2>
-              <p>Elements ouverts et alertes a surveiller par module.</p>
-            </div>
+      <article className="panel" style={{ marginTop: 18 }}>
+        <div className="panelHeader">
+          <div>
+            <h2>Exposition modules</h2>
+            <p>Elements ouverts et alertes a surveiller par module.</p>
           </div>
-          <div className="chart compact">
-            {mounted ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={moduleRisk} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="module" tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="conformite" name="Conformite %" fill="#0f766e" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="ouverts" name="Ouverts" fill="#c2410c" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="alertes" name="Alertes" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="chartSkeleton" />
-            )}
-          </div>
-        </article>
-
-      </div>
+        </div>
+        <div className="chart compact">
+          {mounted ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={moduleRisk} barGap={4} margin={{ top: 4, right: 16, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="module" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} />
+                <Tooltip />
+                <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <Bar dataKey="alertes"   name="Alertes"      fill="#7c3aed" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="conformite" name="Conformite %" fill="#0f766e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ouverts"   name="Ouverts"      fill="#c2410c" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="chartSkeleton" />
+          )}
+        </div>
+      </article>
     </section>
   );
 }

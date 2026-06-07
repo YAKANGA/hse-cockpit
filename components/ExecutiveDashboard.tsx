@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { ResponsiveContainer, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, BarChart, Bar, Cell, LabelList, Pie, PieChart } from "recharts";
-import { getVbgByType, vbgIncidents } from "@/lib/vbg-data";
+import { vbgIncidents } from "@/lib/vbg-data";
 import { useCockpitFilter, dateInRange } from "@/lib/use-cockpit-filter";
 import { getFilteredCockpitStats } from "@/lib/cockpit-stats";
 import { getTrainingSummary } from "@/lib/training-data";
@@ -25,20 +25,34 @@ export function ExecutiveDashboard() {
   );
 
   const v = villes.length === 1 ? villes[0] : undefined;
-  const trainingSummary = useMemo(() => getTrainingSummary(v, dateDebut, dateFin),    [v, dateDebut, dateFin]);
-  const causerieSummary = useMemo(() => getCauserieSummary(v, dateDebut, dateFin),    [v, dateDebut, dateFin]);
-  const duerpSummary    = useMemo(() => getDuerpSummary(v, dateDebut, dateFin),       [v, dateDebut, dateFin]);
-  const medicalSummary  = useMemo(() => getMedicalSummary(v, dateDebut, dateFin),     [v, dateDebut, dateFin]);
-  const consoSummary    = useMemo(() => getConsommationSummary(v, dateDebut, dateFin),[v, dateDebut, dateFin]);
+  const trainingSummary = useMemo(() => getTrainingSummary(v),    [v]);
+  const causerieSummary = useMemo(() => getCauserieSummary(v),    [v]);
+  const duerpSummary    = useMemo(() => getDuerpSummary(v),       [v]);
+  const medicalSummary  = useMemo(() => getMedicalSummary(v),     [v]);
+  const consoSummary    = useMemo(() => getConsommationSummary(v),[v]);
 
   const isFiltered = cockpitStats.isFiltered;
 
-  const byType = useMemo(() => getVbgByType(), []);
+  const filteredVbg = useMemo(
+    () => vbgIncidents.filter((i) => {
+      if (villes.length && !villes.includes(i.site)) return false;
+      if (!dateInRange(i.date, dateDebut, dateFin)) return false;
+      return true;
+    }),
+    [villes, dateDebut, dateFin],
+  );
+
+  const byType = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredVbg.forEach((i) => { map[i.type] = (map[i.type] ?? 0) + 1; });
+    return Object.entries(map).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
+  }, [filteredVbg]);
+
   const pieStatut = useMemo(() => {
     const map: Record<string, number> = {};
-    vbgIncidents.forEach((i) => { map[i.statut] = (map[i.statut] ?? 0) + 1; });
+    filteredVbg.forEach((i) => { map[i.statut] = (map[i.statut] ?? 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [filteredVbg]);
 
   // Période précédente : même durée, immédiatement avant la période sélectionnée
   const { prevDebut, prevFin } = useMemo(() => {
