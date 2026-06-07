@@ -32,6 +32,10 @@ export function ModuleDashboardCharts({ data, accent }: ModuleDashboardChartsPro
   const [selectedStatus, setSelectedStatus] = useState("Tous");
   const { villes, dateDebut, dateFin } = useCockpitFilter();
 
+  // Cockpit filter flags — these OVERRIDE local dropdowns
+  const cockpitHasSite = villes.length > 0;
+  const cockpitHasDate = !!(dateDebut || dateFin);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -41,18 +45,20 @@ export function ModuleDashboardCharts({ data, accent }: ModuleDashboardChartsPro
     () => ["Tous", ...Array.from(new Set(data.table.map((row) => String(row.statut))))],
     [data.table],
   );
+
+  const PERIOD_ISO: Record<string, string> = {
+    "Jan":"2026-01","Fev":"2026-02","Mar":"2026-03",
+    "Avr":"2026-04","Mai":"2026-05","Juin":"2026-06",
+    "Juil":"2026-07","Aout":"2026-08","Sep":"2026-09",
+    "Oct":"2026-10","Nov":"2026-11","Dec":"2026-12",
+  };
+
+  // Cockpit date → ignore local periodRange; no cockpit date → use local periodRange
   const filteredTrend = useMemo(() => {
-    let trend = data.trend;
-    if (dateDebut || dateFin) {
+    if (cockpitHasDate) {
       const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
       const finMois   = dateFin   ? dateFin.slice(0, 7)   : undefined;
-      const PERIOD_ISO: Record<string, string> = {
-        "Jan":"2026-01","Fev":"2026-02","Mar":"2026-03",
-        "Avr":"2026-04","Mai":"2026-05","Juin":"2026-06",
-        "Juil":"2026-07","Aout":"2026-08","Sep":"2026-09",
-        "Oct":"2026-10","Nov":"2026-11","Dec":"2026-12",
-      };
-      trend = trend.filter((t) => {
+      return data.trend.filter((t) => {
         const miso = PERIOD_ISO[String(t.period)];
         if (!miso) return true;
         if (debutMois && miso < debutMois) return false;
@@ -60,16 +66,19 @@ export function ModuleDashboardCharts({ data, accent }: ModuleDashboardChartsPro
         return true;
       });
     }
-    return trend.slice(periodRange === "3" ? -3 : 0);
-  }, [data.trend, periodRange, dateDebut, dateFin]);
+    return data.trend.slice(periodRange === "3" ? -3 : 0);
+  }, [data.trend, periodRange, dateDebut, dateFin, cockpitHasDate]);
 
+  // Cockpit villes → ignore local selectedSite; no cockpit villes → use local selectedSite
   const filteredSites = useMemo(
     () => data.siteComparison.filter((site) =>
-      (selectedSite === "Tous" || site.site === selectedSite) &&
-      (!villes.length || villes.includes(site.site))
+      cockpitHasSite
+        ? villes.includes(site.site)
+        : selectedSite === "Tous" || site.site === selectedSite
     ),
-    [data.siteComparison, selectedSite, villes],
+    [data.siteComparison, selectedSite, villes, cockpitHasSite],
   );
+
   const filteredTable = useMemo(
     () => data.table.filter((row) => selectedStatus === "Tous" || String(row.statut) === selectedStatus),
     [data.table, selectedStatus],
@@ -98,17 +107,22 @@ export function ModuleDashboardCharts({ data, accent }: ModuleDashboardChartsPro
             <p>Analyse par periode, site et statut d'indicateur.</p>
           </div>
         </div>
+        {(cockpitHasSite || cockpitHasDate) && (
+          <div style={{ fontSize:12, color:"#0f766e", background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:6, padding:"6px 12px", marginBottom:8 }}>
+            Filtres cockpit actifs — {cockpitHasSite ? `Sites : ${villes.join(", ")}` : ""}{cockpitHasSite && cockpitHasDate ? " · " : ""}{cockpitHasDate ? `Période : ${dateDebut ? dateDebut.split("-").reverse().join("/") : "…"} – ${dateFin ? dateFin.split("-").reverse().join("/") : "…"}` : ""}. Les filtres locaux correspondants sont ignorés.
+          </div>
+        )}
         <div className="filterBar moduleDashboardFilters">
-          <label>
-            Periode
-            <select value={periodRange} onChange={(event) => setPeriodRange(event.target.value)}>
+          <label style={{ opacity: cockpitHasDate ? 0.4 : 1 }}>
+            Periode{cockpitHasDate ? " (cockpit actif)" : ""}
+            <select value={periodRange} onChange={(event) => setPeriodRange(event.target.value)} disabled={cockpitHasDate}>
               <option value="6">6 mois</option>
               <option value="3">3 derniers mois</option>
             </select>
           </label>
-          <label>
-            Site
-            <select value={selectedSite} onChange={(event) => setSelectedSite(event.target.value)}>
+          <label style={{ opacity: cockpitHasSite ? 0.4 : 1 }}>
+            Site{cockpitHasSite ? " (cockpit actif)" : ""}
+            <select value={selectedSite} onChange={(event) => setSelectedSite(event.target.value)} disabled={cockpitHasSite}>
               {siteOptions.map((site) => (
                 <option key={site}>{site}</option>
               ))}
