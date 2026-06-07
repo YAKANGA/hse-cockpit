@@ -93,14 +93,30 @@ export function GlobalSynthesisCharts() {
   const filteredSiteBreakdown = cockpitStats.filteredSites;
 
   const filteredEpiData = useMemo(() => {
-    if (!villes.length) return EPI_TREND;
-    return EPI_MONTHS.map((month) => ({
-      month,
-      initial:    villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.initial    ?? 0), 0),
-      distribues: villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.distribues ?? 0), 0),
-      reste:      villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.reste      ?? 0), 0),
-    }));
-  }, [villes]);
+    const MONTH_ISO: Record<string, string> = {
+      "Jan":"2026-01","Fev":"2026-02","Mar":"2026-03",
+      "Avr":"2026-04","Mai":"2026-05","Juin":"2026-06",
+    };
+    let base = !villes.length
+      ? EPI_TREND
+      : EPI_MONTHS.map((month) => ({
+          month,
+          initial:    villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.initial    ?? 0), 0),
+          distribues: villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.distribues ?? 0), 0),
+          reste:      villes.reduce((s, v) => s + (EPI_TREND_SITES[v]?.find((m) => m.month === month)?.reste      ?? 0), 0),
+        }));
+    if (dateDebut || dateFin) {
+      const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
+      const finMois   = dateFin   ? dateFin.slice(0, 7)   : undefined;
+      base = base.filter((m) => {
+        const miso = MONTH_ISO[m.month];
+        if (debutMois && miso < debutMois) return false;
+        if (finMois   && miso > finMois)   return false;
+        return true;
+      });
+    }
+    return base;
+  }, [villes, dateDebut, dateFin]);
 
   const moduleRisk = useMemo(
     () =>
