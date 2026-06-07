@@ -95,7 +95,7 @@ export function ExecutiveDashboard() {
     return true;
   }).slice(0, 3);
 
-  const trend = cockpitStats.filteredTrend.map((m) => ({ ...m, objectif: 8 }));
+  const trend = cockpitStats.filteredTrend.map((m) => ({ ...m, objectif: 0 }));
 
   return (
     <section className="sectionBlock">
@@ -195,7 +195,20 @@ export function ExecutiveDashboard() {
                 <BarChart data={byType} layout="vertical" margin={{ top:8, right:28, bottom:8, left:8 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
                   <XAxis type="number" tickLine={false} axisLine={false} tick={{ fontSize:11 }} />
-                  <YAxis type="category" dataKey="type" width={170} tick={{ fontSize:10 }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="type"
+                    width={155}
+                    tick={{ fontSize: 11, fill: "#475569" }}
+                    tickFormatter={(v: string) =>
+                      v
+                        .replace("psychologique / intimidation", "psychologique")
+                        .replace("fondée sur le genre", "de genre")
+                        .replace("Discrimination", "Discrim.")
+                    }
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <Tooltip />
                   <Bar dataKey="count" name="Incidents" fill="#be185d" radius={[0,4,4,0]} barSize={14}>
                     <LabelList dataKey="count" position="right" style={{ fontSize:11, fill:"#be185d", fontWeight:700 }} />
