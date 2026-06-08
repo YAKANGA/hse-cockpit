@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, ChevronDown, LogIn } from "lucide-react";
+import { Bell, Camera, ChevronDown, KeyRound, LogIn, LogOut } from "lucide-react";
 import { hseAlerts } from "@/lib/alerts-data";
 import { demoSessions } from "@/lib/permissions";
 
@@ -44,18 +44,57 @@ export function TopBarUser() {
         )}
       </a>
 
-      <div className="topBarUserInfo">
-        <div className="topBarAvatar">{initials}</div>
-        <div className="topBarUserText">
-          <strong>{session.name}</strong>
-          <small>{session.role.replace(/_/g, " ")}</small>
-        </div>
-        <ChevronDown size={14} style={{ color: "var(--muted)" }} />
-      </div>
+      <details className="topBarUserDropdown">
+        <summary className="topBarUserInfo">
+          <div className="topBarAvatar">{initials}</div>
+          <div className="topBarUserText">
+            <strong>{session.name}</strong>
+            <small>{session.role.replace(/_/g, " ")}</small>
+          </div>
+          <ChevronDown size={14} className="topBarUserChevron" />
+        </summary>
 
-      <a className="topBarLoginBtn" href="/login" title="Changer de profil">
-        <LogIn size={16} />
-      </a>
+        <div className="topBarUserPanel">
+          {/* En-tête profil */}
+          <div className="topBarUserPanelHeader">
+            <div className="topBarAvatarLg">{initials}</div>
+            <div className="topBarUserPanelInfo">
+              <strong>{session.name}</strong>
+              <span>{session.email}</span>
+              <span className="topBarUserPanelRole">{session.role.replace(/_/g, " ")}</span>
+            </div>
+          </div>
+
+          <hr className="topBarUserPanelSep" />
+
+          <button className="topBarProfileItem" type="button">
+            <Camera size={15} />
+            Ajouter une photo
+          </button>
+          <button className="topBarProfileItem" type="button">
+            <KeyRound size={15} />
+            Changer mot de passe
+          </button>
+
+          <hr className="topBarUserPanelSep" />
+
+          <a className="topBarProfileItem" href="/login">
+            <LogIn size={15} />
+            Connexion
+          </a>
+          <button
+            className="topBarProfileItem danger"
+            type="button"
+            onClick={() => {
+              localStorage.removeItem("hse-active-user");
+              window.location.href = "/login";
+            }}
+          >
+            <LogOut size={15} />
+            Déconnexion
+          </button>
+        </div>
+      </details>
     </div>
   );
 }

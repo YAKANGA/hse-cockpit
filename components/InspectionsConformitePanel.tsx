@@ -15,7 +15,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
 
 type ThemeRow = {
   theme: string;
@@ -35,6 +35,54 @@ const THEMES: ThemeRow[] = [
   { theme: "Permis de travail",    realises: 39, conformes: 34, nonConformes: 2,  partiels: 3 },
   { theme: "Plans d'evacuation",   realises: 30, conformes: 18, nonConformes: 9,  partiels: 3 },
 ];
+
+const THEMES_SITES: Record<string, ThemeRow[]> = {
+  "Abidjan": [
+    { theme:"Securite incendie",   realises:20, conformes:16, nonConformes:2, partiels:2 },
+    { theme:"Produits chimiques",  realises:17, conformes:10, nonConformes:5, partiels:2 },
+    { theme:"Equipements levage",  realises:15, conformes:13, nonConformes:1, partiels:1 },
+    { theme:"Echafaudages",        realises:18, conformes:12, nonConformes:4, partiels:2 },
+    { theme:"EPI / protections",   realises:22, conformes:17, nonConformes:3, partiels:2 },
+    { theme:"Signalisation",       realises:14, conformes:11, nonConformes:2, partiels:1 },
+    { theme:"Permis de travail",   realises:16, conformes:14, nonConformes:1, partiels:1 },
+    { theme:"Plans d'evacuation",  realises:12, conformes: 7, nonConformes:4, partiels:1 },
+  ],
+  "Bouake": [
+    { theme:"Securite incendie",   realises:12, conformes:10, nonConformes:2, partiels:0 },
+    { theme:"Produits chimiques",  realises:10, conformes: 6, nonConformes:3, partiels:1 },
+    { theme:"Equipements levage",  realises: 9, conformes: 7, nonConformes:1, partiels:1 },
+    { theme:"Echafaudages",        realises:11, conformes: 8, nonConformes:2, partiels:1 },
+    { theme:"EPI / protections",   realises:13, conformes:10, nonConformes:2, partiels:1 },
+    { theme:"Signalisation",       realises: 9, conformes: 7, nonConformes:1, partiels:1 },
+    { theme:"Permis de travail",   realises:10, conformes: 9, nonConformes:0, partiels:1 },
+    { theme:"Plans d'evacuation",  realises: 8, conformes: 5, nonConformes:2, partiels:1 },
+  ],
+  "Yamoussoukro": [
+    { theme:"Securite incendie",   realises: 8, conformes: 6, nonConformes:1, partiels:1 },
+    { theme:"Produits chimiques",  realises: 7, conformes: 4, nonConformes:2, partiels:1 },
+    { theme:"Equipements levage",  realises: 6, conformes: 5, nonConformes:1, partiels:0 },
+    { theme:"Echafaudages",        realises: 8, conformes: 5, nonConformes:2, partiels:1 },
+    { theme:"EPI / protections",   realises: 9, conformes: 7, nonConformes:1, partiels:1 },
+    { theme:"Signalisation",       realises: 6, conformes: 5, nonConformes:1, partiels:0 },
+    { theme:"Permis de travail",   realises: 7, conformes: 6, nonConformes:0, partiels:1 },
+    { theme:"Plans d'evacuation",  realises: 5, conformes: 3, nonConformes:2, partiels:0 },
+  ],
+  "San Pedro": [
+    { theme:"Securite incendie",   realises: 8, conformes: 6, nonConformes:1, partiels:1 },
+    { theme:"Produits chimiques",  realises: 7, conformes: 4, nonConformes:1, partiels:2 },
+    { theme:"Equipements levage",  realises: 7, conformes: 6, nonConformes:0, partiels:1 },
+    { theme:"Echafaudages",        realises: 7, conformes: 5, nonConformes:0, partiels:2 },
+    { theme:"EPI / protections",   realises: 8, conformes: 6, nonConformes:1, partiels:1 },
+    { theme:"Signalisation",       realises: 6, conformes: 5, nonConformes:0, partiels:1 },
+    { theme:"Permis de travail",   realises: 6, conformes: 5, nonConformes:1, partiels:0 },
+    { theme:"Plans d'evacuation",  realises: 5, conformes: 3, nonConformes:1, partiels:1 },
+  ],
+};
+
+const MONTH_ISO: Record<string, string> = {
+  "Jan":"2026-01","Fev":"2026-02","Mar":"2026-03",
+  "Avr":"2026-04","Mai":"2026-05","Juin":"2026-06",
+};
 
 const TREND = [
   { mois: "Jan", txConformite: 68, ecarts: 22 },
@@ -56,29 +104,72 @@ const PERIODS: { label: string; value: Period }[] = [
 export function InspectionsConformitePanel() {
   const [mounted, setMounted] = useState(false);
   const [period, setPeriod] = useState<Period>("6m");
-  useCockpitFilter();
+  const globalFilter = useCockpitFilter();
+  const { dateDebut, dateFin } = globalFilter;
+  const cockpitHasDate = !!(dateDebut || dateFin);
+  const activeSites = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   useEffect(() => { setMounted(true); }, []);
 
   const trendData = useMemo(() => {
-    if (period === "3m") return TREND.slice(-3);
-    if (period === "6m") return TREND.slice(-6);
-    return TREND;
-  }, [period]);
+    let base = period === "3m" ? TREND.slice(-3) : period === "6m" ? TREND.slice(-6) : TREND;
+    if (cockpitHasDate) {
+      const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
+      const finMois   = dateFin   ? dateFin.slice(0, 7)   : undefined;
+      base = base.filter((m) => {
+        const miso = MONTH_ISO[m.mois];
+        if (debutMois && miso < debutMois) return false;
+        if (finMois   && miso > finMois)   return false;
+        return true;
+      });
+    }
+    return base;
+  }, [period, dateDebut, dateFin, cockpitHasDate]);
 
-  const withRate = useMemo(
-    () =>
-      THEMES.map((t) => ({
-        ...t,
-        txConformite: t.realises ? Math.round((t.conformes / t.realises) * 100) : 0,
-      })).sort((a, b) => a.txConformite - b.txConformite),
-    [],
-  );
+  // Fraction of months in the selected period that match the date filter
+  const trendRatio = useMemo(() => {
+    if (!cockpitHasDate) return 1;
+    const base = period === "3m" ? TREND.slice(-3) : period === "6m" ? TREND.slice(-6) : TREND;
+    return base.length > 0 ? trendData.length / base.length : 0;
+  }, [trendData, period, cockpitHasDate]);
 
-  const sousSeuil = withRate.filter((t) => t.txConformite < SEUIL);
-  const globalTx = Math.round(
-    withRate.reduce((s, t) => s + t.conformes, 0) /
-    withRate.reduce((s, t) => s + t.realises, 0) * 100,
-  );
+  const withRate = useMemo(() => {
+    const siteSrc = activeSites
+      ? THEMES.map((t) => {
+          const agg = activeSites.reduce(
+            (s, v) => {
+              const st = THEMES_SITES[v]?.find((r) => r.theme === t.theme);
+              return {
+                realises:     s.realises     + (st?.realises     ?? 0),
+                conformes:    s.conformes    + (st?.conformes    ?? 0),
+                nonConformes: s.nonConformes + (st?.nonConformes ?? 0),
+                partiels:     s.partiels     + (st?.partiels     ?? 0),
+              };
+            },
+            { realises: 0, conformes: 0, nonConformes: 0, partiels: 0 },
+          );
+          return { ...t, ...agg };
+        })
+      : THEMES;
+
+    const scaled = cockpitHasDate
+      ? siteSrc.map((t) => ({
+          ...t,
+          realises:     Math.round(t.realises     * trendRatio),
+          conformes:    Math.round(t.conformes    * trendRatio),
+          nonConformes: Math.round(t.nonConformes * trendRatio),
+          partiels:     Math.round(t.partiels     * trendRatio),
+        }))
+      : siteSrc;
+
+    return scaled
+      .map((t) => ({ ...t, txConformite: t.realises > 0 ? Math.round((t.conformes / t.realises) * 100) : 0 }))
+      .sort((a, b) => a.txConformite - b.txConformite);
+  }, [activeSites, trendRatio, cockpitHasDate]);
+
+  const sousSeuil = withRate.filter((t) => t.realises > 0 && t.txConformite < SEUIL);
+  const totalRealises = withRate.reduce((s, t) => s + t.realises, 0);
+  const totalConformes = withRate.reduce((s, t) => s + t.conformes, 0);
+  const globalTx = totalRealises > 0 ? Math.round((totalConformes / totalRealises) * 100) : 0;
 
   return (
     <section className="sectionBlock">
@@ -193,7 +284,11 @@ export function InspectionsConformitePanel() {
                     <td>{t.conformes}</td>
                     <td><span className="status danger">{t.nonConformes}</span></td>
                     <td><strong style={{ color: t.txConformite < 65 ? "#dc2626" : "#d97706" }}>{t.txConformite}%</strong></td>
-                    <td><span className="status warn">Contre-visite</span></td>
+                    <td>
+                      <span className={t.txConformite < 65 ? "status danger" : "status warn"}>
+                        {t.txConformite < 65 ? "Contre-visite" : "Plan correctif"}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>

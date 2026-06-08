@@ -13,6 +13,8 @@ import {
   Crown,
   FileDown,
   FileSpreadsheet,
+  Layers,
+  LayoutGrid,
   ListChecks,
   LockKeyhole,
   Settings,
@@ -32,7 +34,7 @@ export function TopNavLinks() {
     [userId],
   );
   const perms = new Set(session.permissions);
-  const canSuperAdmin  = perms.has("platform:manage-tenants");
+  const canSuperAdmin   = perms.has("platform:manage-tenants");
   const canManageTenant = perms.has("tenant:manage-settings") || perms.has("tenant:manage-users") || perms.has("tenant:manage-roles");
   const canAudit  = perms.has("audit:view");
   const canExport = perms.has("module:export");
@@ -60,40 +62,24 @@ export function TopNavLinks() {
 
   return (
     <nav className="topNavLinks" aria-label="Navigation principale">
+      {/* Cockpit */}
       <a className={isActive("/", true) ? "topNavLink active" : "topNavLink"} href="/">
         <BarChart3 size={15} />
         Cockpit
       </a>
 
-      {perms.has("module:view") && (
-        <a className={isActive("/alerts") ? "topNavLink active" : "topNavLink"} href="/alerts">
-          <AlertTriangle size={15} />
-          Alertes
-        </a>
-      )}
-
-      {perms.has("module:view") && (
-        <a className={isActive("/sites") ? "topNavLink active" : "topNavLink"} href="/sites">
-          <Building2 size={15} />
-          Sites
-        </a>
-      )}
-
-      {perms.has("module:view") && (
-        <a className={isActive("/calendrier") ? "topNavLink active" : "topNavLink"} href="/calendrier">
-          <CalendarDays size={15} />
-          Calendrier
-        </a>
-      )}
-
+      {/* Modules — grille 2 colonnes, juste après Cockpit */}
       {perms.has("module:view") && (
         <details className="topNavDropdown">
           <summary className={modules.some((m) => isActive(`/modules/${m.id}`)) ? "topNavLink active" : "topNavLink"}>
-            <Shield size={15} />
+            <LayoutGrid size={15} />
             Modules
             <ChevronDown size={13} className="topNavChevron" />
           </summary>
-          <div className="topNavDropdownPanel">
+          <div
+            className="topNavDropdownPanel"
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, minWidth: 360 }}
+          >
             {modules.map((m) => {
               const Icon = m.icon;
               return (
@@ -114,6 +100,31 @@ export function TopNavLinks() {
         </details>
       )}
 
+      {perms.has("module:view") && (
+        <details className="topNavDropdown">
+          <summary className={
+            isActive("/alerts") || isActive("/sites") || isActive("/calendrier")
+              ? "topNavLink active"
+              : "topNavLink"
+          }>
+            <Layers size={15} />
+            Vues
+            <ChevronDown size={13} className="topNavChevron" />
+          </summary>
+          <div className="topNavDropdownPanel">
+            <a className={isActive("/alerts") ? "topNavDropdownItem active" : "topNavDropdownItem"} href="/alerts">
+              <AlertTriangle size={14} /> Alertes
+            </a>
+            <a className={isActive("/sites") ? "topNavDropdownItem active" : "topNavDropdownItem"} href="/sites">
+              <Building2 size={14} /> Sites
+            </a>
+            <a className={isActive("/calendrier") ? "topNavDropdownItem active" : "topNavDropdownItem"} href="/calendrier">
+              <CalendarDays size={14} /> Calendrier
+            </a>
+          </div>
+        </details>
+      )}
+
       {canExport && (
         <details className="topNavDropdown">
           <summary className={isActive("/reports") ? "topNavLink active" : "topNavLink"}>
@@ -129,51 +140,48 @@ export function TopNavLinks() {
         </details>
       )}
 
-      {(canManageTenant || canImport || canAudit) && (
-        <details className="topNavDropdown">
-          <summary className={isActive("/admin") ? "topNavLink active" : "topNavLink"}>
-            <Settings size={15} />
-            Admin
-            <ChevronDown size={13} className="topNavChevron" />
-          </summary>
-          <div className="topNavDropdownPanel">
-            {canManageTenant && (
-              <>
-                <a className="topNavDropdownItem" href="/admin#entities"><Building2 size={14} /> Entites</a>
-                <a className="topNavDropdownItem" href="/admin#roles"><LockKeyhole size={14} /> Roles & droits</a>
-                <a className="topNavDropdownItem" href="/admin#users"><Users size={14} /> Utilisateurs</a>
-                <a className="topNavDropdownItem" href="/admin/referentiels"><SlidersHorizontal size={14} /> Referentiels</a>
-                <a className="topNavDropdownItem" href="/admin/validation"><ListChecks size={14} /> Regles validation</a>
-                <a className="topNavDropdownItem" href="/admin/security"><Shield size={14} /> Securite acces</a>
-              </>
-            )}
-            {(canImport || canManageTenant) && (
-              <a className="topNavDropdownItem" href="/admin/imports"><FileSpreadsheet size={14} /> Historique imports</a>
-            )}
-            {canAudit && (
-              <a className="topNavDropdownItem" href="/admin/audit"><Shield size={14} /> Journal d&apos;audit</a>
-            )}
-          </div>
-        </details>
-      )}
-
-      {canSuperAdmin && (
-        <details className="topNavDropdown">
-          <summary className={isActive("/super-admin") ? "topNavLink active" : "topNavLink"}>
-            <Crown size={15} />
-            Super Admin
-            <ChevronDown size={13} className="topNavChevron" />
-          </summary>
-          <div className="topNavDropdownPanel">
-            <a className="topNavDropdownItem" href="/super-admin/tenants"><Building2 size={14} /> Entreprises</a>
-            <a className="topNavDropdownItem" href="/super-admin/operations"><Activity size={14} /> Exploitation</a>
-          </div>
-        </details>
-      )}
-      <a className={isActive("/aide") ? "topNavLink active" : "topNavLink"} href="/aide">
-        <BookOpen size={15} />
-        Aide
-      </a>
+      <details className="topNavDropdown">
+        <summary className={
+          isActive("/admin") || isActive("/super-admin") || isActive("/aide")
+            ? "topNavLink active"
+            : "topNavLink"
+        }>
+          <Settings size={15} />
+          Configuration
+          <ChevronDown size={13} className="topNavChevron" />
+        </summary>
+        <div className="topNavDropdownPanel">
+          {canManageTenant && (
+            <>
+              <a className="topNavDropdownItem" href="/admin#entities"><Building2 size={14} /> Entites</a>
+              <a className="topNavDropdownItem" href="/admin#roles"><LockKeyhole size={14} /> Roles & droits</a>
+              <a className="topNavDropdownItem" href="/admin#users"><Users size={14} /> Utilisateurs</a>
+              <a className="topNavDropdownItem" href="/admin/referentiels"><SlidersHorizontal size={14} /> Referentiels</a>
+              <a className="topNavDropdownItem" href="/admin/validation"><ListChecks size={14} /> Regles validation</a>
+              <a className="topNavDropdownItem" href="/admin/security"><Shield size={14} /> Securite acces</a>
+            </>
+          )}
+          {(canImport || canManageTenant) && (
+            <a className="topNavDropdownItem" href="/admin/imports"><FileSpreadsheet size={14} /> Historique imports</a>
+          )}
+          {canAudit && (
+            <a className="topNavDropdownItem" href="/admin/audit"><Shield size={14} /> Journal d&apos;audit</a>
+          )}
+          {canSuperAdmin && (
+            <>
+              {(canManageTenant || canImport || canAudit) && (
+                <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--line, #e2e8f0)" }} />
+              )}
+              <a className="topNavDropdownItem" href="/super-admin/tenants"><Crown size={14} /> Entreprises</a>
+              <a className="topNavDropdownItem" href="/super-admin/operations"><Activity size={14} /> Exploitation</a>
+            </>
+          )}
+          <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--line, #e2e8f0)" }} />
+          <a className={isActive("/aide") ? "topNavDropdownItem active" : "topNavDropdownItem"} href="/aide">
+            <BookOpen size={14} /> Aide
+          </a>
+        </div>
+      </details>
     </nav>
   );
 }

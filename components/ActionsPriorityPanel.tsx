@@ -83,8 +83,15 @@ export function ActionsPriorityPanel() {
     return Object.entries(m).map(([site, v]) => ({ site, ...v }));
   }, [baseData]);
 
-  const overdueActions = useMemo(() => baseData.filter((a) => a.statut === "En retard"), [baseData]);
-  const tauxCloture    = baseData.length ? Math.round((baseData.filter((a) => a.statut === "Clos").length / baseData.length) * 100) : 0;
+  const overdueActions    = useMemo(() => baseData.filter((a) => a.statut === "En retard"), [baseData]);
+  const closCount         = useMemo(() => baseData.filter((a) => a.statut === "Clos").length, [baseData]);
+  const enCoursCount      = useMemo(() => baseData.filter((a) => a.statut === "En cours").length, [baseData]);
+  const ouvertCount       = useMemo(() => baseData.filter((a) => a.statut === "Ouvert").length, [baseData]);
+  const total             = baseData.length;
+  const tauxCloture       = total ? Math.round((closCount / total) * 100) : 0;
+  const tauxEnCours       = total ? Math.round((enCoursCount / total) * 100) : 0;
+  const tauxRetard        = total ? Math.round((overdueActions.length / total) * 100) : 0;
+  const tauxOuvert        = total ? Math.round((ouvertCount / total) * 100) : 0;
   const critiquesOuvertes = baseData.filter((a) => a.priorite === "Critique" && a.statut !== "Clos").length;
 
   const kpis = [
@@ -124,18 +131,20 @@ export function ActionsPriorityPanel() {
           <span style={{ fontWeight:700, color: tauxCloture >= 85 ? "#16a34a" : tauxCloture >= 60 ? "#d97706" : "#dc2626" }}>{tauxCloture}%</span>
         </div>
         <div style={{ height:8, background:"var(--line)", borderRadius:99, overflow:"hidden" }}>
-          <div style={{ display:"flex", height:"100%", overflow:"hidden", borderRadius:99 }}>
-            <div style={{ width:`${tauxCloture}%`, background:"linear-gradient(90deg,#16a34a,#0f766e)", transition:"width .5s" }} />
-            <div style={{ width:`${Math.round((ACTIONS.filter((a) => a.statut === "En cours").length / ACTIONS.length)*100)}%`, background:"#2563eb" }} />
-            <div style={{ width:`${Math.round((overdueActions.length / ACTIONS.length)*100)}%`, background:"#dc2626" }} />
-            <div style={{ flex:1, background:"#d97706" }} />
-          </div>
+          {total > 0 && (
+            <div style={{ display:"flex", height:"100%", overflow:"hidden", borderRadius:99 }}>
+              <div style={{ width:`${tauxCloture}%`, background:"linear-gradient(90deg,#16a34a,#0f766e)", transition:"width .5s" }} />
+              <div style={{ width:`${tauxEnCours}%`, background:"#2563eb" }} />
+              <div style={{ width:`${tauxRetard}%`, background:"#dc2626" }} />
+              <div style={{ width:`${tauxOuvert}%`, background:"#d97706" }} />
+            </div>
+          )}
         </div>
         <div style={{ display:"flex", gap:12, marginTop:6, fontSize:11, flexWrap:"wrap" }}>
-          <span style={{ color:"#16a34a" }}>● Clôturées : {ACTIONS.filter((a) => a.statut === "Clos").length}</span>
-          <span style={{ color:"#2563eb" }}>● En cours : {ACTIONS.filter((a) => a.statut === "En cours").length}</span>
+          <span style={{ color:"#16a34a" }}>● Clôturées : {closCount}</span>
+          <span style={{ color:"#2563eb" }}>● En cours : {enCoursCount}</span>
           <span style={{ color:"#dc2626" }}>● En retard : {overdueActions.length}</span>
-          <span style={{ color:"#d97706" }}>● Ouvertes : {ACTIONS.filter((a) => a.statut === "Ouvert").length}</span>
+          <span style={{ color:"#d97706" }}>● Ouvertes : {ouvertCount}</span>
         </div>
       </div>
 
@@ -196,7 +205,7 @@ export function ActionsPriorityPanel() {
 
         {/* Pie statut */}
         <article className="panel">
-          <div className="panelHeader"><div><h2>Répartition par statut</h2><p>Distribution globale des {ACTIONS.length} actions.</p></div></div>
+          <div className="panelHeader"><div><h2>Répartition par statut</h2><p>Distribution globale des {total} actions.</p></div></div>
           <div className="chart compact" style={{ position:"relative" }}>
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
