@@ -20,8 +20,27 @@ import {
   Settings,
   Shield,
   SlidersHorizontal,
+  UserCog,
   Users,
 } from "lucide-react";
+
+const SEP = () => (
+  <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--line, #e2e8f0)" }} />
+);
+
+const SectionLabel = ({ label }: { label: string }) => (
+  <p style={{
+    padding: "6px 12px 2px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    color: "var(--muted, #94a3b8)",
+    margin: 0,
+  }}>
+    {label}
+  </p>
+);
 import { demoSessions } from "@/lib/permissions";
 import { modules } from "@/lib/hse-data";
 
@@ -150,33 +169,44 @@ export function TopNavLinks() {
           Configuration
           <ChevronDown size={13} className="topNavChevron" />
         </summary>
-        <div className="topNavDropdownPanel">
-          {canManageTenant && (
+        <div className="topNavDropdownPanel" style={{ minWidth: 240 }}>
+          {(canManageTenant || canImport || canAudit) && (
             <>
-              <a className="topNavDropdownItem" href="/admin#entities"><Building2 size={14} /> Entites</a>
-              <a className="topNavDropdownItem" href="/admin#roles"><LockKeyhole size={14} /> Roles & droits</a>
-              <a className="topNavDropdownItem" href="/admin#users"><Users size={14} /> Utilisateurs</a>
-              <a className="topNavDropdownItem" href="/admin/referentiels"><SlidersHorizontal size={14} /> Referentiels</a>
-              <a className="topNavDropdownItem" href="/admin/validation"><ListChecks size={14} /> Regles validation</a>
-              <a className="topNavDropdownItem" href="/admin/security"><Shield size={14} /> Securite acces</a>
+              <SectionLabel label="Administration tenant" />
+              {canManageTenant && (
+                <>
+                  <a className="topNavDropdownItem" href="/admin#entities"><Building2 size={14} /> Entites</a>
+                  <a className="topNavDropdownItem" href="/admin#roles"><LockKeyhole size={14} /> Roles & droits</a>
+                  <a className="topNavDropdownItem" href="/admin#users"><Users size={14} /> Gestion utilisateurs</a>
+                  <a className="topNavDropdownItem" href="/admin/referentiels"><SlidersHorizontal size={14} /> Referentiels</a>
+                  <a className="topNavDropdownItem" href="/admin/validation"><ListChecks size={14} /> Regles validation</a>
+                  <a className="topNavDropdownItem" href="/admin/security"><Shield size={14} /> Securite acces</a>
+                </>
+              )}
+              {(canImport || canManageTenant) && (
+                <a className="topNavDropdownItem" href="/admin/imports"><FileSpreadsheet size={14} /> Historique imports</a>
+              )}
+              {canAudit && (
+                <a className="topNavDropdownItem" href="/admin/audit"><Shield size={14} /> Journal d&apos;audit</a>
+              )}
             </>
-          )}
-          {(canImport || canManageTenant) && (
-            <a className="topNavDropdownItem" href="/admin/imports"><FileSpreadsheet size={14} /> Historique imports</a>
-          )}
-          {canAudit && (
-            <a className="topNavDropdownItem" href="/admin/audit"><Shield size={14} /> Journal d&apos;audit</a>
           )}
           {canSuperAdmin && (
             <>
-              {(canManageTenant || canImport || canAudit) && (
-                <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--line, #e2e8f0)" }} />
-              )}
-              <a className="topNavDropdownItem" href="/super-admin/tenants"><Crown size={14} /> Entreprises</a>
-              <a className="topNavDropdownItem" href="/super-admin/operations"><Activity size={14} /> Exploitation</a>
+              {(canManageTenant || canImport || canAudit) && <SEP />}
+              <SectionLabel label="Super Admin — Plateforme" />
+              <a className="topNavDropdownItem" href="/super-admin/tenants">
+                <Building2 size={14} /> Config. des entreprises
+              </a>
+              <a className="topNavDropdownItem" href="/super-admin/users">
+                <UserCog size={14} /> Gestion des utilisateurs
+              </a>
+              <a className="topNavDropdownItem" href="/super-admin/operations">
+                <Activity size={14} /> Exploitation
+              </a>
             </>
           )}
-          <hr style={{ margin: "4px 0", border: "none", borderTop: "1px solid var(--line, #e2e8f0)" }} />
+          <SEP />
           <a className={isActive("/aide") ? "topNavDropdownItem active" : "topNavDropdownItem"} href="/aide">
             <BookOpen size={14} /> Aide
           </a>

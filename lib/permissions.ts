@@ -28,7 +28,17 @@ export type AppSession = {
 };
 
 export const rolePermissions: Record<AppRole, Permission[]> = {
-  SUPER_ADMIN: ["platform:manage-tenants", "module:view", "module:export", "audit:view"],
+  SUPER_ADMIN: [
+    "platform:manage-tenants",
+    "tenant:manage-settings",
+    "tenant:manage-users",
+    "tenant:manage-roles",
+    "module:view",
+    "module:import",
+    "module:validate",
+    "module:export",
+    "audit:view",
+  ],
   TENANT_ADMIN: [
     "tenant:manage-settings",
     "tenant:manage-users",
