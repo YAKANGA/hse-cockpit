@@ -46,6 +46,7 @@ import { modules } from "@/lib/hse-data";
 
 export function TopNavLinks() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [userId, setUserId] = useState("tenant-admin-acme");
 
   const session = useMemo(
@@ -60,6 +61,7 @@ export function TopNavLinks() {
   const canImport = perms.has("module:import");
 
   useEffect(() => {
+    setMounted(true);
     const stored = localStorage.getItem("hse-active-user");
     if (stored && demoSessions.some((s) => s.userId === stored)) setUserId(stored);
 
@@ -191,7 +193,7 @@ export function TopNavLinks() {
               )}
             </>
           )}
-          {canSuperAdmin && (
+          {mounted && canSuperAdmin && (
             <>
               {(canManageTenant || canImport || canAudit) && <SEP />}
               <SectionLabel label="Super Admin — Plateforme" />

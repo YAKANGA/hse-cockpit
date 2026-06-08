@@ -4,10 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
-    "dev:superadmin": "next dev --port 3001",
     "build": "next build",
     "start": "next start --port 3000",
-    "start:superadmin": "next start --port 3001",
     "lint": "next lint"
   },
   "dependencies": {
