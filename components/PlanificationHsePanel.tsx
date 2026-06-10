@@ -61,17 +61,35 @@ const STATUT_ICON: Record<StatutActivite, React.ElementType> = {
 const CATEGORIES = ["Toutes", ...Array.from(new Set(PLAN_ANNUEL.map((p) => p.categorie)))];
 const TRIMESTRES: (Trimestre | "Tous")[] = ["Tous", "T1", "T2", "T3", "T4"];
 
+const MOIS_ISO: Record<string, string> = {
+  "Janvier":"2026-01","Fevrier":"2026-02","Mars":"2026-03",
+  "Avril":"2026-04","Mai":"2026-05","Juin":"2026-06",
+  "Juillet":"2026-07","Aout":"2026-08","Septembre":"2026-09",
+  "Octobre":"2026-10","Novembre":"2026-11","Decembre":"2026-12",
+};
+
 export function PlanificationHsePanel() {
   const [trimestre, setTrimestre] = useState<Trimestre | "Tous">("Tous");
   const [categorie, setCategorie] = useState("Toutes");
   const globalFilter = useCockpitFilter();
+  const { dateDebut, dateFin } = globalFilter;
   const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
 
-  const baseData = useMemo(() =>
-    PLAN_ANNUEL.filter((p) =>
-      !activeSites || p.site === "Tous" || activeSites.includes(p.site)
-    ),
-  [activeSites]);
+  const baseData = useMemo(() => {
+    const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
+    const finMois   = dateFin   ? dateFin.slice(0, 7)   : undefined;
+    return PLAN_ANNUEL.filter((p) => {
+      if (activeSites && p.site !== "Tous" && !activeSites.includes(p.site)) return false;
+      if (debutMois || finMois) {
+        const miso = MOIS_ISO[p.mois];
+        if (miso) {
+          if (debutMois && miso < debutMois) return false;
+          if (finMois   && miso > finMois)   return false;
+        }
+      }
+      return true;
+    });
+  }, [activeSites, dateDebut, dateFin]);
 
   const filtered = useMemo(() =>
     baseData.filter((p) =>
@@ -101,7 +119,9 @@ export function PlanificationHsePanel() {
     };
   }), [baseData]);
 
-  const budgetConsomme = Math.round((summary.budgetConsomme / summary.budgetTotal) * 100);
+  const budgetConsomme = summary.budgetTotal > 0
+    ? Math.round((summary.budgetConsomme / summary.budgetTotal) * 100)
+    : 0;
 
   return (
     <section className="sectionBlock">
@@ -129,15 +149,12 @@ export function PlanificationHsePanel() {
 
       {/* Progress bar budget */}
       <article className="panel" style={{ marginTop:18 }}>
-        <div style={{ padding:"16px 20px" }}>
-          <div style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:8 }}>
-            <span style={{ fontWeight:600 }}>Consommation budget HSE 2026</span>
-            <span style={{ color:"var(--muted)" }}>{summary.budgetConsomme.toLocaleString("fr-FR")} / {summary.budgetTotal.toLocaleString("fr-FR")} FCFA</span>
-          </div>
-          <div style={{ height:12, background:"var(--line)", borderRadius:999, overflow:"hidden" }}>
+        <div style={{ padding:"10px 20px 8px", display:"flex", alignItems:"center", gap:16 }}>
+          <span style={{ fontWeight:600, fontSize:13, whiteSpace:"nowrap" }}>Consommation budget HSE 2026</span>
+          <div style={{ flex:1, height:8, background:"var(--line)", borderRadius:999, overflow:"hidden" }}>
             <div style={{ height:"100%", width:`${budgetConsomme}%`, background:"#0f766e", borderRadius:999, transition:"width 0.5s ease" }} />
           </div>
-          <div style={{ fontSize:12, color:"var(--muted)", marginTop:4 }}>{budgetConsomme}% du budget annuel consommé</div>
+          <span style={{ fontSize:12, color:"var(--muted)", whiteSpace:"nowrap" }}>{budgetConsomme}% — {summary.budgetConsomme.toLocaleString("fr-FR")} / {summary.budgetTotal.toLocaleString("fr-FR")} FCFA</span>
         </div>
       </article>
 
@@ -146,63 +163,104 @@ export function PlanificationHsePanel() {
           <div className="panelHeader"><div><h2>Avancement par trimestre</h2><p>Répartition des activités par statut et trimestre.</p></div></div>
           <div className="chart" style={{ height:220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={byTrimestre}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                <XAxis dataKey="trimestre" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} />
-                <Tooltip /><Legend />
-                <Bar dataKey="realisees" name="Réalisées"  fill="#16a34a" radius={[4,4,0,0]} stackId="a" />
-                <Bar dataKey="enCours"   name="En cours"   fill="#2563eb" radius={[0,0,0,0]} stackId="a" />
-                <Bar dataKey="planifiees"name="Planifiées" fill="#94a3b8" radius={[0,0,0,0]} stackId="a" />
-                <Bar dataKey="enRetard"  name="En retard"  fill="#dc2626" radius={[0,0,4,4]} stackId="a" />
+              <BarChart data={byTrimestre} barCategoryGap="30%" barGap={3}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
+                <XAxis dataKey="trimestre" tickLine={false} axisLine={false} tick={{ fontSize:12 }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize:11 }} width={28} />
+                <Tooltip contentStyle={{ borderRadius:8, fontSize:12, border:"1px solid var(--line)" }} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:11 }} />
+                <Bar dataKey="realisees"  name="Réalisées"  fill="#16a34a" radius={[4,4,0,0]} />
+                <Bar dataKey="enCours"    name="En cours"   fill="#2563eb" radius={[4,4,0,0]} />
+                <Bar dataKey="planifiees" name="Planifiées" fill="#94a3b8" radius={[4,4,0,0]} />
+                <Bar dataKey="enRetard"   name="En retard"  fill="#dc2626" radius={[4,4,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </article>
       </div>
 
-      <div style={{ display:"flex", gap:6, margin:"18px 0 0", flexWrap:"wrap" }}>
-        {TRIMESTRES.map((t) => (
-          <button key={t} type="button" className={trimestre === t ? "periodBtn active" : "periodBtn"} onClick={() => setTrimestre(t)}>{t}</button>
-        ))}
-        <span style={{ width:12 }} />
-        {CATEGORIES.map((c) => (
-          <button key={c} type="button" className={categorie === c ? "periodBtn active" : "periodBtn"} style={{ fontSize:11 }} onClick={() => setCategorie(c)}>{c}</button>
-        ))}
-        <span style={{ fontSize:12, color:"var(--muted)", alignSelf:"center", marginLeft:6 }}>{filtered.length} activité{filtered.length > 1 ? "s" : ""}</span>
-      </div>
-
-      <article className="panel" style={{ marginTop:14 }}>
-        <div className="panelHeader"><div><h2>Calendrier des activités HSE 2026</h2><p>Programme détaillé avec budgets et responsables.</p></div></div>
-        <div className="tableWrap">
-          <table>
-            <thead><tr><th>Trim.</th><th>Mois</th><th>Catégorie</th><th>Activité</th><th>Responsable</th><th>Site</th><th style={{ textAlign:"right" }}>Budget (FCFA)</th><th>Statut</th><th>Commentaire</th></tr></thead>
-            <tbody>
-              {filtered.map((p) => {
-                const Icon = STATUT_ICON[p.statut];
-                return (
-                  <tr key={p.id}>
-                    <td style={{ fontWeight:600, color:"var(--primary)" }}>{p.trimestre}</td>
-                    <td style={{ fontSize:12 }}>{p.mois}</td>
-                    <td><span className="status" style={{ background:"var(--bg)", color:"var(--muted)", fontSize:11 }}>{p.categorie}</span></td>
-                    <td style={{ fontSize:12, maxWidth:220 }}>{p.activite}</td>
-                    <td style={{ fontSize:12, whiteSpace:"nowrap" }}>{p.responsable}</td>
-                    <td style={{ fontSize:12 }}>{p.site}</td>
-                    <td style={{ textAlign:"right", fontSize:12, fontVariantNumeric:"tabular-nums" }}>{p.budget_fcfa.toLocaleString("fr-FR")}</td>
-                    <td>
-                      <span className="status" style={{ background:`${STATUT_COLOR[p.statut]}22`, color:STATUT_COLOR[p.statut], fontSize:11, display:"inline-flex", alignItems:"center", gap:4 }}>
-                        <Icon size={11} />
-                        {p.statut}
-                      </span>
-                    </td>
-                    <td style={{ fontSize:11, color:"var(--muted)", maxWidth:180 }}>{p.commentaire || "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* ── Section Calendrier ── */}
+      <div style={{ marginTop:32 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:10 }}>
+          <div>
+            <h3 style={{ fontSize:15, fontWeight:700, color:"var(--text)", margin:0 }}>Calendrier des activités HSE 2026</h3>
+            <p style={{ fontSize:12, color:"var(--muted)", margin:"2px 0 0" }}>Programme détaillé avec budgets et responsables.</p>
+          </div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+            {/* Trimestres */}
+            <div style={{ display:"flex", gap:3, background:"var(--hover)", borderRadius:8, padding:"3px" }}>
+              {TRIMESTRES.map((t) => (
+                <button key={t} type="button" onClick={() => setTrimestre(t)}
+                  style={{ fontSize:12, fontWeight:600, padding:"4px 12px", borderRadius:6, border:"none", cursor:"pointer", transition:"all 0.15s",
+                    background: trimestre === t ? "var(--primary)" : "transparent",
+                    color: trimestre === t ? "#fff" : "var(--muted)" }}>{t}</button>
+              ))}
+            </div>
+            <span style={{ width:1, height:24, background:"var(--line)", display:"inline-block" }} />
+            {/* Catégories */}
+            <div style={{ display:"flex", gap:3, flexWrap:"wrap" }}>
+              {CATEGORIES.map((c) => (
+                <button key={c} type="button" onClick={() => setCategorie(c)}
+                  style={{ fontSize:11, fontWeight:600, padding:"4px 10px", borderRadius:6, border:`1.5px solid ${categorie === c ? "var(--primary)" : "var(--line)"}`, cursor:"pointer", transition:"all 0.15s",
+                    background: categorie === c ? "var(--primary)" : "var(--panel)",
+                    color: categorie === c ? "#fff" : "var(--ink)" }}>{c}</button>
+              ))}
+            </div>
+            <span style={{ fontSize:12, color:"var(--muted)", marginLeft:2, whiteSpace:"nowrap" }}>{filtered.length} activité{filtered.length > 1 ? "s" : ""}</span>
+          </div>
         </div>
-      </article>
+
+        <article className="panel" style={{ overflow:"hidden" }}>
+          <div className="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Trim.</th><th>Mois</th><th>Catégorie</th><th>Activité</th>
+                  <th>Responsable</th><th>Site</th>
+                  <th style={{ textAlign:"right" }}>Budget (FCFA)</th>
+                  <th>Statut</th><th>Commentaire</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p) => {
+                  const Icon = STATUT_ICON[p.statut];
+                  return (
+                    <tr key={p.id}>
+                      <td style={{ fontWeight:700, color:"var(--primary)", fontSize:12 }}>{p.trimestre}</td>
+                      <td style={{ fontSize:12, whiteSpace:"nowrap" }}>{p.mois}</td>
+                      <td>
+                        <span className="status" style={{ background:"var(--bg)", color:"var(--muted)", fontSize:11, border:"1px solid var(--line)" }}>
+                          {p.categorie}
+                        </span>
+                      </td>
+                      <td style={{ fontSize:12, maxWidth:240 }}>{p.activite}</td>
+                      <td style={{ fontSize:12, whiteSpace:"nowrap" }}>{p.responsable}</td>
+                      <td style={{ fontSize:12 }}>{p.site}</td>
+                      <td style={{ textAlign:"right", fontSize:12, fontVariantNumeric:"tabular-nums", fontWeight:500 }}>
+                        {p.budget_fcfa.toLocaleString("fr-FR")}
+                      </td>
+                      <td>
+                        <span className="status" style={{ background:`${STATUT_COLOR[p.statut]}22`, color:STATUT_COLOR[p.statut], fontSize:11, display:"inline-flex", alignItems:"center", gap:4, whiteSpace:"nowrap" }}>
+                          <Icon size={11} />
+                          {p.statut}
+                        </span>
+                      </td>
+                      <td style={{ fontSize:11, color:"var(--muted)", maxWidth:200 }}>{p.commentaire || "—"}</td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign:"center", padding:"28px 0", fontSize:13, color:"var(--muted)" }}>
+                      Aucune activité ne correspond aux filtres sélectionnés.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
     </section>
   );
 }
