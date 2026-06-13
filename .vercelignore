@@ -1,0 +1,10 @@
+node_modules
+.next
+data
+*.tsbuildinfo
+next-start-*.log
+next-start-*.err.log
+UsershpAppDataLocalTemp*.png
+hse_capture.mjs
+hse_screenshots.mjs
+take_screenshots.mjs
