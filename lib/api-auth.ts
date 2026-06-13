@@ -15,13 +15,15 @@ export function getSessionFromRequest(request: Request): AppSession {
 
     // Real DB user not in demo sessions — build session from headers
     return {
-      userId:      id,
-      name:        email.split("@")[0] ?? id,
+      userId:            id,
+      name:              email.split("@")[0] ?? id,
       email,
-      tenantId:    null,
-      tenantName:  null,
+      tenantId:          null,
+      tenantName:        null,
       role,
-      permissions: rolePermissions[role] ?? [],
+      permissions:       rolePermissions[role] ?? [],
+      allowedSiteIds:    null,
+      allowedProjectIds: null,
     };
   }
 

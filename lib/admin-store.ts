@@ -1,11 +1,15 @@
 import { entities, rightsMatrix, roles, users, type Entity, type Role, type UserAccount } from "@/lib/admin-data";
 import type { Permission } from "@/lib/permissions";
 
+const TRASH_RETENTION_DAYS = 30;
+
 type TenantAdminState = {
   tenantId: string;
   entities: Entity[];
+  deletedEntities: Entity[];
   roles: Role[];
   users: UserAccount[];
+  deletedUsers: UserAccount[];
   rightsMatrix: typeof rightsMatrix;
 };
 
@@ -69,24 +73,35 @@ let adminStore: Record<string, TenantAdminState> = Object.fromEntries(
     {
       tenantId,
       entities: tenantEntities.map((entity) => ({ ...entity })),
+      deletedEntities: [],
       roles: roles.map((role) => ({ ...role })),
       users: (tenantUserSeeds[tenantId] ?? []).map((user) => ({ ...user })),
+      deletedUsers: [],
       rightsMatrix: rightsMatrix.map((right) => ({ ...right })),
     },
   ]),
 );
 
+function isExpired(deletedAt: string): boolean {
+  const diff = Date.now() - new Date(deletedAt).getTime();
+  return diff > TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+}
+
 function cloneState(state: TenantAdminState) {
+  const stillInEntityTrash = state.deletedEntities.filter((e) => e.deletedAt && !isExpired(e.deletedAt));
+  const stillInUserTrash   = state.deletedUsers.filter((u) => u.deletedAt && !isExpired(u.deletedAt));
   const entitiesWithCounts = state.entities.map((entity) => ({
     ...entity,
     users: state.users.filter((user) => user.entity === entity.name).length,
   }));
   return {
-    tenantId: state.tenantId,
-    entities: entitiesWithCounts,
-    roles: state.roles.map((role) => ({ ...role })),
-    users: state.users.map((user) => ({ ...user })),
-    rightsMatrix: state.rightsMatrix.map((right) => ({ ...right })),
+    tenantId:       state.tenantId,
+    entities:       entitiesWithCounts,
+    deletedEntities: stillInEntityTrash.map((e) => ({ ...e })),
+    roles:          state.roles.map((role) => ({ ...role })),
+    users:          state.users.map((user) => ({ ...user })),
+    deletedUsers:   stillInUserTrash.map((u) => ({ ...u })),
+    rightsMatrix:   state.rightsMatrix.map((right) => ({ ...right })),
   };
 }
 
@@ -122,12 +137,86 @@ export function getTenantAdminState(tenantId: string) {
       entities: [
         { id: `${tenantId}-default`, tenantId, name: "Entite principale", type: "Direction", users: 1, active: true },
       ],
+      deletedEntities: [],
       roles: roles.map((role) => ({ ...role })),
       users: [],
+      deletedUsers: [],
       rightsMatrix: rightsMatrix.map((right) => ({ ...right })),
     };
   }
   return cloneState(adminStore[tenantId]);
+}
+
+export function softDeleteEntity(tenantId: string, entityId: string) {
+  const state = getTenantAdminState(tenantId);
+  const target = state.entities.find((e) => e.id === entityId);
+  if (!target) return null;
+  const deleted = { ...target, deletedAt: new Date().toISOString(), active: false };
+  adminStore[tenantId] = {
+    ...adminStore[tenantId],
+    entities: adminStore[tenantId].entities.filter((e) => e.id !== entityId),
+    deletedEntities: [deleted, ...adminStore[tenantId].deletedEntities],
+  };
+  return deleted;
+}
+
+export function restoreEntity(tenantId: string, entityId: string) {
+  const raw = adminStore[tenantId];
+  if (!raw) return null;
+  const target = raw.deletedEntities.find((e) => e.id === entityId);
+  if (!target) return null;
+  const restored = { ...target, deletedAt: undefined, active: true };
+  adminStore[tenantId] = {
+    ...raw,
+    deletedEntities: raw.deletedEntities.filter((e) => e.id !== entityId),
+    entities: [restored, ...raw.entities],
+  };
+  return restored;
+}
+
+export function permanentDeleteEntity(tenantId: string, entityId: string) {
+  const raw = adminStore[tenantId];
+  if (!raw) return false;
+  const inTrash = raw.deletedEntities.some((e) => e.id === entityId);
+  if (!inTrash) return false;
+  adminStore[tenantId] = { ...raw, deletedEntities: raw.deletedEntities.filter((e) => e.id !== entityId) };
+  return true;
+}
+
+export function softDeleteUser(tenantId: string, userId: string) {
+  const state = getTenantAdminState(tenantId);
+  const target = state.users.find((u) => u.id === userId);
+  if (!target) return null;
+  const deleted = { ...target, deletedAt: new Date().toISOString(), status: "Suspendu" as const };
+  adminStore[tenantId] = {
+    ...adminStore[tenantId],
+    users: adminStore[tenantId].users.filter((u) => u.id !== userId),
+    deletedUsers: [deleted, ...adminStore[tenantId].deletedUsers],
+  };
+  return deleted;
+}
+
+export function restoreUser(tenantId: string, userId: string) {
+  const raw = adminStore[tenantId];
+  if (!raw) return null;
+  const target = raw.deletedUsers.find((u) => u.id === userId);
+  if (!target) return null;
+  const restored = { ...target, deletedAt: undefined, status: "Invite" as const };
+  adminStore[tenantId] = {
+    ...raw,
+    deletedUsers: raw.deletedUsers.filter((u) => u.id !== userId),
+    users: [restored, ...raw.users],
+  };
+  return restored;
+}
+
+export function permanentDeleteUser(tenantId: string, userId: string) {
+  const raw = adminStore[tenantId];
+  if (!raw) return false;
+  const inTrash = raw.deletedUsers.some((u) => u.id === userId);
+  if (!inTrash) return false;
+  adminStore[tenantId] = { ...raw, deletedUsers: raw.deletedUsers.filter((u) => u.id !== userId) };
+  return true;
 }
 
 export function createTenantUser(tenantId: string, input: CreateUserInput) {

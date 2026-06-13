@@ -20,13 +20,15 @@ export function getFilteredCockpitStats(
   projets: string[],
   dateDebut?: string,
   dateFin?: string,
+  tenantId?: string,
 ): FilteredCockpitStats {
-  const isFiltered = villes.length > 0 || projets.length > 0 || !!dateDebut || !!dateFin;
+  const isFiltered = villes.length > 0 || projets.length > 0 || !!dateDebut || !!dateFin || !!tenantId;
 
   const filtered = moduleRecords.filter((r) => {
-    if (villes.length  && !villes.includes(r.site))      return false;
-    if (projets.length && !projets.includes(r.projectId)) return false;
-    if (!dateInRange(r.date, dateDebut, dateFin))         return false;
+    if (tenantId && r.tenantId !== tenantId)               return false;
+    if (villes.length  && !villes.includes(r.site))        return false;
+    if (projets.length && !projets.includes(r.projectId))  return false;
+    if (!dateInRange(r.date, dateDebut, dateFin))          return false;
     return true;
   });
 

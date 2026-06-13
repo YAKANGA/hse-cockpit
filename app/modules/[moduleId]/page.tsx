@@ -1,11 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  Database,
-  Download,
-  FileDown,
-} from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { moduleOperationalKpis, modules } from "@/lib/hse-data";
 import { getIntegratedModuleRecords } from "@/lib/import-store";
 import { getModuleDashboardData } from "@/lib/module-dashboard-data";
@@ -31,7 +26,7 @@ import { DecisionPilotagePanel } from "@/components/DecisionPilotagePanel";
 import { VbgDashboardPanel } from "@/components/VbgDashboardPanel";
 import { PpeModuleSection } from "@/components/PpeModuleSection";
 import { ModuleDashboardCharts } from "@/components/ModuleDashboardCharts";
-import { ModuleImportForm } from "@/components/ModuleImportForm";
+import { ModuleHeaderDropdowns } from "@/components/ModuleHeaderDropdowns";
 import { ModuleRecordsExplorer } from "@/components/ModuleRecordsExplorer";
 import "../../globals.css";
 
@@ -65,8 +60,8 @@ export default async function ModulePage({
 
   const Icon = module.icon;
   const operationalKpi = moduleOperationalKpis.find((item) => item.moduleId === module.id);
-  const dashboardData = getModuleDashboardData(module.id);
   const records = [...getIntegratedModuleRecords(module.id, tenantId), ...getModuleRecords(module.id)];
+  const dashboardData = getModuleDashboardData(module.id, records);
   const tenantQuery = tenantId ? `?tenantId=${tenantId}` : "";
 
   return (
@@ -75,69 +70,22 @@ export default async function ModulePage({
       <section className="modulePage">
       <header className="moduleHero" style={{ "--module": module.color, "--tint": module.accent } as React.CSSProperties}>
         <div>
-          <Link className="backLink" href="/">
-            <ArrowLeft size={18} />
-            Retour cockpit
-          </Link>
           <div className="moduleHeroTitle">
             <div className="moduleIcon">
               <Icon size={26} />
             </div>
             <div>
-              <p className="eyebrow">Module HSE</p>
               <h1>{module.name}</h1>
-              <p>{module.description}</p>
             </div>
           </div>
         </div>
         <div className="moduleHeroActions">
           <CockpitFiltersBar />
-          <a className="secondaryButton" href={`/api/templates/${module.id}${tenantQuery}`}>
-            <Download size={18} />
-            Modele Excel
-          </a>
-          <a className="darkButton" href={`/api/modules/${module.id}/dashboard${tenantQuery}`}>
-            <Database size={18} />
-            API dashboard
-          </a>
+          <ModuleHeaderDropdowns moduleId={module.id} moduleName={module.name} tenantId={tenantId} />
         </div>
       </header>
 
       {dashboardData ? <ModuleDashboardCharts data={dashboardData} accent={module.color} records={records} /> : null}
-
-      <section className="moduleActionGrid">
-        <ModuleImportForm moduleId={module.id} moduleName={module.name} tenantId={tenantId} />
-        <article className="panel moduleQuickActions">
-          <div className="panelHeader">
-            <div>
-              <h2>Actions rapides</h2>
-              <p>Ressources du module et sorties disponibles.</p>
-            </div>
-          </div>
-          <div className="reportList">
-            <a className="reportItem" href={`/api/templates/${module.id}${tenantQuery}`}>
-              <span>Telecharger le modele .xlsx</span>
-              <Download size={16} />
-            </a>
-            <a className="reportItem" href={`/api/modules/${module.id}/dashboard${tenantQuery}`}>
-              <span>Consulter les donnees dashboard</span>
-              <Database size={16} />
-            </a>
-            <a className="reportItem" href={`/api/reports/modules/${module.id}/docx${tenantQuery}`}>
-              <span>Exporter un rapport Word</span>
-              <FileDown size={16} />
-            </a>
-            <a className="reportItem" href={`/api/reports/modules/${module.id}/pdf${tenantQuery}`}>
-              <span>Exporter un rapport PDF</span>
-              <FileDown size={16} />
-            </a>
-            <a className="reportItem" href={`/api/exports/${module.id}${tenantQuery}`}>
-              <span>Exporter les donnees Excel</span>
-              <Download size={16} />
-            </a>
-          </div>
-        </article>
-      </section>
 
       {operationalKpi ? (
         <DecisionPilotagePanel
@@ -149,7 +97,7 @@ export default async function ModulePage({
 
       {module.id === "indicators"   ? <IndicateursTFTGDashboard />     : null}
       {module.id === "actions"      ? <ActionsPriorityPanel />          : null}
-      {module.id === "events"       ? <EventsSeverityPanel />           : null}
+      {module.id === "events"       ? <EventsSeverityPanel records={records} /> : null}
       {module.id === "inspections"  ? <InspectionsConformitePanel />    : null}
       {module.id === "permits"      ? <PermisStatusPanel />             : null}
       {module.id === "ppe"          ? <EpiDashboardPanel />             : null}

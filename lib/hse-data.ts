@@ -131,9 +131,9 @@ export const modules: HseModule[] = [
   },
   {
     id: "environment",
-    name: "Gestion environnementale — impacts par chantier",
+    name: "Gestion environnementale — impacts par projet",
     shortName: "Environnement",
-    description: "Identification, cotation et suivi des impacts environnementaux par chantier (ISO 14001:2015, IFC Standards).",
+    description: "Identification, cotation et suivi des impacts environnementaux par projet (ISO 14001:2015, IFC Standards).",
     icon: Leaf,
     color: "#15803d",
     accent: "#f0fdf4",
@@ -443,7 +443,7 @@ export const siteBreakdown = [
 
 export const imports = [
   { module: "Permis", fichier: "permis_travail_juin.xlsx", statut: "Valide", lignes: 86, auteur: "A. Kouadio" },
-  { module: "EPI", fichier: "inventaire_epi_chantier.xlsx", statut: "Controle", lignes: 64, auteur: "K. Yao" },
+  { module: "EPI", fichier: "inventaire_epi_projet.xlsx", statut: "Controle", lignes: 64, auteur: "K. Yao" },
   { module: "Actions", fichier: "plan_actions_sites.xlsx", statut: "A corriger", lignes: 42, auteur: "M. Diallo" },
   { module: "Inspections", fichier: "audits_q2.xlsx", statut: "Valide", lignes: 123, auteur: "S. Traore" },
   { module: "Evenements", fichier: "incidents_mai.xlsx", statut: "Controle", lignes: 17, auteur: "N. Kone" },

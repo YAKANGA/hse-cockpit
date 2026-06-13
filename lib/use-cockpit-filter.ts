@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SITES } from "@/lib/sites-data";
-import { getProjectsForCities, getProjectsForSites } from "@/lib/projects-data";
+import { getProjectsForCities, getProjectsForSites, getProjectsByTenant, tenantIdForProjectId } from "@/lib/projects-data";
 import { cityForSiteId } from "@/lib/sites-catalog";
 import { dateInRange } from "@/lib/date-utils";
 
@@ -103,6 +103,11 @@ export function matchesFilter(
   record: { site?: string; projectId?: string; date?: string },
   filter: CockpitFilter,
 ): boolean {
+  // Tenant isolation: if filter has a tenantId, reject records from other tenants
+  if (filter.tenantId && record.projectId) {
+    const recTenant = tenantIdForProjectId(record.projectId);
+    if (recTenant && recTenant !== filter.tenantId) return false;
+  }
   const effectiveVilles = filter.siteIds.length
     ? filter.siteIds.map((id) => cityForSiteId(id)).filter(Boolean) as string[]
     : filter.villes;
@@ -127,7 +132,7 @@ export function getActiveSites(filter: CockpitFilter): string[] | null {
   }
 
   if (projets.length > 0) {
-    const allProjects = getProjectsForCities([]);
+    const allProjects = filter.tenantId ? getProjectsByTenant(filter.tenantId) : getProjectsForCities([]);
     const projectCities = allProjects.filter((p) => projets.includes(p.id)).map((p) => p.city);
     const unique = [...new Set(projectCities)];
     return villes.length ? villes.filter((v) => unique.includes(v)) : unique;

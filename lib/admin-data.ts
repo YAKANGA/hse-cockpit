@@ -8,6 +8,7 @@ export type Entity = {
   siteId?: string;    // renseigné pour les entités de type Site/Projet
   users: number;
   active: boolean;
+  deletedAt?: string; // ISO — présent = supprimé, absent = actif. Purge auto après 30 jours.
 };
 
 export type Role = {
@@ -36,6 +37,7 @@ export type UserAccount = {
   status: "Actif" | "Suspendu" | "Invite";
   allowedSiteIds: string[] | null;
   allowedProjectIds: string[] | null;
+  deletedAt?: string; // ISO — présent = en corbeille. Purge auto après 30 jours.
 };
 
 // ── Entités structurées par entreprise ──────────────────────────────────────
@@ -85,6 +87,14 @@ export const roles: Role[] = [
     name: "Responsable HSE site",
     scope: "Site",
     description: "Import, validation et pilotage — restreint aux sites et projets assignés.",
+    active: true,
+    permissions: ["module:view", "module:import", "module:validate", "module:export"],
+  },
+  {
+    id: "hse_projet",
+    name: "Responsable HSE Projet",
+    scope: "Projet",
+    description: "Pilotage HSE complet sur le(s) projet(s) assigné(s) : import, validation, suivi des actions et exports.",
     active: true,
     permissions: ["module:view", "module:import", "module:validate", "module:export"],
   },
@@ -170,6 +180,12 @@ export const rightsMatrix = [
     role: "Responsable HSE site",
     perimetre: "Sites assignés + leurs projets",
     modules: "Modules des sites assignés",
+    actions: "Lire, importer, valider, exporter",
+  },
+  {
+    role: "Responsable HSE Projet",
+    perimetre: "Projet(s) assigné(s)",
+    modules: "Tous modules HSE du projet",
     actions: "Lire, importer, valider, exporter",
   },
   {

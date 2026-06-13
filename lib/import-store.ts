@@ -67,11 +67,12 @@ function rowToModuleRecord(moduleId: string, tenantId: string | null, row: Recor
   const site = stringValue(row.site, "Non renseigne");
   const entity = stringValue(row.projet, stringValue(row.service, site));
   const projectId = stringValue(row.code_projet, "");
-  const projectName = stringValue(row.nom_projet ?? row.chantier ?? row.projet, site);
+  const projectName = stringValue(row.nom_projet ?? row.projet, site);
   const base = {
     id: `imp-${tenantId ?? "global"}-${moduleId}-${Date.now()}-${index}`,
     moduleId,
     date: normalizeDate(row.date ?? row.mois ?? row.date_achat),
+    tenantId: tenantId ?? "global",
     site,
     projectId,
     projectName,

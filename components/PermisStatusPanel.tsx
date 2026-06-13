@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -47,12 +48,25 @@ const STATUS_ICON: Record<string, React.ElementType> = {
   "En attente": ShieldOff,
 };
 const TYPE_COLORS = ["#0f766e","#2563eb","#c2410c","#7c3aed","#b45309"];
+
+const COL_DEFS_PERMIS = [
+  { key:"type",   label:"Type",        get:(p: Permis) => p.type },
+  { key:"site",   label:"Site",        get:(p: Permis) => p.site },
+  { key:"resp",   label:"Responsable", get:(p: Permis) => p.responsable },
+  { key:"statut", label:"Statut",      get:(p: Permis) => p.statut },
+];
+
 export function PermisStatusPanel() {
   const [mounted, setMounted] = useState(false);
   const [filter, setFilter]   = useState<string>("Tous");
   const globalFilter = useCockpitFilter();
   const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   useEffect(() => { setMounted(true); }, []);
+
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+  const [openCol, setOpenCol] = useState<string | null>(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const baseData = useMemo(() =>
     PERMIS.filter((p) =>
@@ -93,6 +107,22 @@ export function PermisStatusPanel() {
   const cloturesCnt= baseData.filter((p) => p.statut === "Cloture").length;
   const tauxValide = baseData.length ? Math.round(((baseData.length - withoutHse.length) / baseData.length) * 100) : 0;
 
+  const colOptions = useMemo(() =>
+    Object.fromEntries(COL_DEFS_PERMIS.map(({ key, get }) => [
+      key, Array.from(new Set(filtered.map(get))).sort(),
+    ])),
+  [filtered]);
+
+  const tableData = useMemo(() =>
+    filtered.filter((p) =>
+      COL_DEFS_PERMIS.every(({ key, get }) => {
+        if (!(key in colFilters)) return true;
+        const vals = colFilters[key] ?? [];
+        return vals.length === 0 ? false : vals.includes(get(p));
+      })
+    ),
+  [filtered, colFilters]);
+
   const kpis: [string, number, string, string, React.ElementType][] = [
     ["Actifs",            actifs,      "en cours d'exécution", "#0f766e", CheckCircle2],
     ["Expirés",           expires,     "à clôturer d'urgence", "#dc2626", AlertTriangle],
@@ -101,6 +131,33 @@ export function PermisStatusPanel() {
     ["Sans validation",   withoutHse.length, "bloquer avant travaux","#dc2626", ShieldOff],
     ["Validation HSE",    baseData.length - withoutHse.length, `${tauxValide}% du total`, "#0f766e", ShieldCheck],
   ];
+
+  function toggleColValue(col: string, val: string) {
+    setColFilters((prev) => {
+      const all = colOptions[col] ?? [];
+      const inPrev = col in prev;
+      const cur = inPrev ? (prev[col] ?? []) : all;
+      let next: string[];
+      if (!inPrev)               { next = all.filter((v) => v !== val); }
+      else if (cur.includes(val)){ next = cur.filter((v) => v !== val); }
+      else                       { next = [...cur, val]; }
+      if (next.length === all.length) {
+        const copy = { ...prev }; delete copy[col]; return copy;
+      }
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function openDropdown(col: string) {
+    if (openCol === col) { setOpenCol(null); return; }
+    const btn = btnRefs.current[col];
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+    setOpenCol(col);
+  }
+
+  const hasAnyColFilter = Object.keys(colFilters).length > 0;
 
   return (
     <section className="sectionBlock">
@@ -153,13 +210,22 @@ export function PermisStatusPanel() {
       )}
 
       {/* Filters */}
-      <div style={{ display:"flex", gap:6, margin:"14px 0 0", flexWrap:"wrap" }}>
-        {["Tous","Actif","En attente","Expire","Cloture"].map((s) => (
-          <button key={s} type="button" className={filter === s ? "periodBtn active" : "periodBtn"}
-            style={{ fontSize:11, ...(filter === s && STATUS_COLOR[s] ? { borderColor:STATUS_COLOR[s], color:STATUS_COLOR[s] } : {}) }}
-            onClick={() => setFilter(s)}>{s}</button>
-        ))}
-        <span style={{ fontSize:12, color:"var(--muted)", alignSelf:"center", marginLeft:6 }}>{filtered.length} permis</span>
+      <div style={{ display:"flex", gap:4, margin:"14px 0 0", flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ display:"flex", gap:3, background:"var(--hover)", borderRadius:8, padding:"3px" }}>
+          {["Tous","Actif","En attente","Expire","Cloture"].map((s) => {
+            const active = filter === s;
+            const color  = STATUS_COLOR[s];
+            return (
+              <button key={s} type="button" onClick={() => setFilter(s)}
+                style={{ fontSize:12, fontWeight:600, padding:"4px 12px", borderRadius:6, border:"none", cursor:"pointer", transition:"all 0.15s",
+                  background: active ? (color ?? "var(--primary)") : "transparent",
+                  color: active ? "#fff" : color ?? "var(--muted)" }}>
+                {s}
+              </button>
+            );
+          })}
+        </div>
+        <span style={{ fontSize:12, color:"var(--muted)", marginLeft:4, whiteSpace:"nowrap" }}>{filtered.length} permis</span>
       </div>
 
       {/* Charts row */}
@@ -190,16 +256,16 @@ export function PermisStatusPanel() {
           <div className="chart compact">
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={bySiteStatut} barSize={22}>
+                <BarChart data={bySiteStatut} barSize={14} barGap={3}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
                   <XAxis dataKey="site" tick={{ fontSize:11 }} tickLine={false} axisLine={false} />
-                  <YAxis tickLine={false} axisLine={false} />
+                  <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip contentStyle={{ borderRadius:8, fontSize:12 }} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:11 }} />
-                  <Bar dataKey="Actif"       name="Actif"       fill="#0f766e" stackId="a" />
-                  <Bar dataKey="Cloture"     name="Clôturé"     fill="#64748b" stackId="a" />
-                  <Bar dataKey="En attente"  name="En attente"  fill="#d97706" stackId="a" />
-                  <Bar dataKey="Expire"      name="Expiré"      fill="#dc2626" stackId="a" radius={[4,4,0,0]} />
+                  <Bar dataKey="Actif"      name="Actif"      fill="#0f766e" radius={[4,4,0,0]} />
+                  <Bar dataKey="Cloture"    name="Clôturé"    fill="#64748b" radius={[4,4,0,0]} />
+                  <Bar dataKey="En attente" name="En attente" fill="#d97706" radius={[4,4,0,0]} />
+                  <Bar dataKey="Expire"     name="Expiré"     fill="#dc2626" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <div className="chartSkeleton" />}
@@ -209,24 +275,54 @@ export function PermisStatusPanel() {
 
       {/* Pie + validation breakdown */}
       <div className="dashboardGrid" style={{ marginTop:18 }}>
-        <article className="panel">
+        <article className="panel" style={{ display:"flex", flexDirection:"column" }}>
           <div className="panelHeader"><div><h2>Répartition par statut</h2><p>Actifs, expirés, clôturés et en attente.</p></div></div>
-          <div className="chart compact" style={{ position:"relative" }}>
+          <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:16, padding:"12px 16px" }}>
             {mounted ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} innerRadius={48}>
-                    {byStatus.map((e) => <Cell key={e.name} fill={STATUS_COLOR[e.name] ?? "#94a3b8"} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius:8, fontSize:12 }} />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : <div className="chartSkeleton" />}
-            <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-65%)", textAlign:"center", pointerEvents:"none" }}>
-              <div style={{ fontSize:20, fontWeight:800, color:"#0f766e" }}>{actifs}</div>
-              <div style={{ fontSize:10, color:"var(--muted)" }}>actifs</div>
-            </div>
+              <>
+                <div style={{ position:"relative", flexShrink:0, width:160, height:160 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={byStatus} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={72} innerRadius={44}
+                        label={false} labelLine={false}>
+                        {byStatus.map((e) => <Cell key={e.name} fill={STATUS_COLOR[e.name] ?? "#94a3b8"} />)}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: unknown, name: unknown) => [`${Number(value ?? 0)} permis`, String(name)]}
+                        contentStyle={{ borderRadius:8, fontSize:12, border:"1px solid var(--line)", boxShadow:"0 4px 16px rgba(0,0,0,0.08)" }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}>
+                    <div style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:22, fontWeight:800, color:"#0f766e", lineHeight:1 }}>{actifs}</div>
+                      <div style={{ fontSize:10, color:"var(--muted)", marginTop:2 }}>actifs</div>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
+                  {(() => {
+                    const total = byStatus.reduce((s, e) => s + e.value, 0);
+                    return byStatus.map((e) => {
+                      const pct   = total > 0 ? Math.round((e.value / total) * 100) : 0;
+                      const color = STATUS_COLOR[e.name] ?? "#94a3b8";
+                      return (
+                        <div key={e.name}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                            <span style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }} />
+                            <span style={{ flex:1, fontSize:12, color:"var(--ink)" }}>{e.name}</span>
+                            <span style={{ fontSize:11, color:"var(--muted)", marginRight:4 }}>{pct}%</span>
+                            <strong style={{ fontSize:13, fontWeight:700, color, minWidth:20, textAlign:"right" }}>{e.value}</strong>
+                          </div>
+                          <div style={{ height:3, background:"var(--line)", borderRadius:2, overflow:"hidden" }}>
+                            <div style={{ height:"100%", width:`${pct}%`, background:color, borderRadius:2 }} />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </>
+            ) : <div className="chartSkeleton" style={{ height:160 }} />}
           </div>
         </article>
 
@@ -260,12 +356,102 @@ export function PermisStatusPanel() {
 
       {/* Table */}
       <article className="panel" style={{ marginTop:18 }}>
-        <div className="panelHeader"><div><h2>Registre des permis</h2><p>{filtered.length} permis affiché{filtered.length > 1 ? "s" : ""}.</p></div></div>
+        <div className="panelHeader">
+          <div>
+            <h2>
+              Registre des permis
+              {hasAnyColFilter && (
+                <button type="button" onClick={() => setColFilters({})}
+                  style={{ fontSize:11, padding:"3px 10px", borderRadius:6, border:"1px solid #dc2626", background:"#fee2e2", color:"#dc2626", cursor:"pointer", fontWeight:700, marginLeft:8 }}>
+                  ✕ Réinitialiser colonnes
+                </button>
+              )}
+            </h2>
+            <p>{tableData.length}/{filtered.length} permis affiché{tableData.length > 1 ? "s" : ""}</p>
+          </div>
+        </div>
+
+        {mounted && openCol && createPortal(
+          <>
+            <div style={{ position:"fixed", inset:0, zIndex:9998 }} onClick={() => setOpenCol(null)} />
+            <div style={{ position:"absolute", top:dropPos.top+2, left:dropPos.left, zIndex:9999, background:"#fff", border:"1px solid #e5e7eb", borderRadius:8, boxShadow:"0 8px 28px rgba(0,0,0,0.14)", minWidth:190, maxHeight:310, display:"flex", flexDirection:"column" }}>
+              <div style={{ overflowY:"auto", flex:1 }}>
+                {(colOptions[openCol] ?? []).map((opt) => {
+                  const isFiltering = openCol in colFilters;
+                  const cur = isFiltering ? (colFilters[openCol] ?? []) : null;
+                  const checked = cur === null || cur.includes(opt);
+                  return (
+                    <label key={opt} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 12px", cursor:"pointer", fontSize:12, borderBottom:"1px solid #f1f5f9", background:"#fff" }}
+                      onMouseEnter={(ev) => { ev.currentTarget.style.background = "#f3f4f6"; }}
+                      onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleColValue(openCol, opt)}
+                        style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }} />
+                      <span style={{ fontWeight: checked ? 600 : 400, color: checked ? "#111827" : "#9ca3af" }}>{opt}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <label style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 12px", borderTop:"1px solid #e5e7eb", cursor:"pointer", fontSize:12, background:"#f9fafb", borderRadius:"0 0 8px 8px" }}>
+                <input type="checkbox" checked={!(openCol in colFilters)}
+                  ref={(el) => { if (el) el.indeterminate = (openCol in colFilters) && (colFilters[openCol]?.length ?? 0) > 0; }}
+                  onChange={() => {
+                    const isAll = !(openCol in colFilters);
+                    if (isAll) { setColFilters((p) => ({ ...p, [openCol]: [] })); }
+                    else { setColFilters((p) => { const c = {...p}; delete c[openCol]; return c; }); }
+                  }}
+                  style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }} />
+                <span style={{ fontWeight:600, color:"#374151" }}>Tout sélectionner</span>
+              </label>
+            </div>
+          </>,
+          document.body
+        )}
+
         <div className="tableWrap">
           <table>
-            <thead><tr><th>ID</th><th>Type</th><th>Zone</th><th>Site</th><th>Responsable</th><th>Début</th><th>Fin</th><th>Validation HSE</th><th>Statut</th></tr></thead>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button ref={(el) => { btnRefs.current["type"] = el; }} type="button" onClick={() => openDropdown("type")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "type" ? "1px solid #2563eb" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "type" ? "#eff6ff" : "type" in colFilters ? "#f0f9ff" : "transparent", color: "type" in colFilters ? "#2563eb" : "var(--fg)", transition:"all 0.12s" }}>
+                    Type
+                    {"type" in colFilters ? <span style={{ background:"#2563eb", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["type"] ?? []).length}</span>
+                                           : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
+                <th>Zone</th>
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button ref={(el) => { btnRefs.current["site"] = el; }} type="button" onClick={() => openDropdown("site")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "site" ? "1px solid #2563eb" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "site" ? "#eff6ff" : "site" in colFilters ? "#f0f9ff" : "transparent", color: "site" in colFilters ? "#2563eb" : "var(--fg)", transition:"all 0.12s" }}>
+                    Site
+                    {"site" in colFilters ? <span style={{ background:"#2563eb", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["site"] ?? []).length}</span>
+                                           : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button ref={(el) => { btnRefs.current["resp"] = el; }} type="button" onClick={() => openDropdown("resp")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "resp" ? "1px solid #2563eb" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "resp" ? "#eff6ff" : "resp" in colFilters ? "#f0f9ff" : "transparent", color: "resp" in colFilters ? "#2563eb" : "var(--fg)", transition:"all 0.12s" }}>
+                    Responsable
+                    {"resp" in colFilters ? <span style={{ background:"#2563eb", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["resp"] ?? []).length}</span>
+                                           : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
+                <th>Début</th>
+                <th>Fin</th>
+                <th>Validation HSE</th>
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button ref={(el) => { btnRefs.current["statut"] = el; }} type="button" onClick={() => openDropdown("statut")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "statut" ? "1px solid #2563eb" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "statut" ? "#eff6ff" : "statut" in colFilters ? "#f0f9ff" : "transparent", color: "statut" in colFilters ? "#2563eb" : "var(--fg)", transition:"all 0.12s" }}>
+                    Statut
+                    {"statut" in colFilters ? <span style={{ background:"#2563eb", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["statut"] ?? []).length}</span>
+                                             : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
+              </tr>
+            </thead>
             <tbody>
-              {filtered.map((p) => (
+              {tableData.map((p) => (
                 <tr key={p.id} style={{ background:!p.validationHse && p.statut !== "Cloture" ? "#fef2f222" : undefined }}>
                   <td><code style={{ fontSize:12 }}>{p.id}</code></td>
                   <td style={{ fontSize:12 }}>{p.type}</td>

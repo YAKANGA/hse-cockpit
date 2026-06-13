@@ -54,6 +54,14 @@ export async function POST(request: Request) {
   const authorization = requirePermission(request, "tenant:manage-users");
   if (authorization.response) return authorization.response;
 
+  // Seul le TENANT_ADMIN peut créer des utilisateurs
+  if (authorization.session.role === "SUPER_ADMIN") {
+    return Response.json(
+      { error: "Droits insuffisants — la création d'utilisateurs est réservée à l'Admin d'entreprise." },
+      { status: 403 },
+    );
+  }
+
   const url      = new URL(request.url);
   const session  = getSessionFromRequest(request);
   const tenantId = url.searchParams.get("tenantId") ?? session.tenantId;
@@ -66,7 +74,7 @@ export async function POST(request: Request) {
   const input = await request.json() as { name: string; email: string; entity?: string; role?: string; password?: string };
   if (!input.name || !input.email) return Response.json({ error: "Nom et email requis" }, { status: 400 });
 
-  const user = createTenantUser(tenantId, { name: input.name, email: input.email, entity: input.entity ?? "", role: input.role ?? "IMPORT_USER" });
+  const user = createTenantUser(tenantId, { tenantId, name: input.name, email: input.email, entity: input.entity ?? "", role: input.role ?? "IMPORT_USER" });
   if (!user) return Response.json({ error: "Creation utilisateur echouee" }, { status: 400 });
 
   // Persist to DB (SQLite or Postgres based on DATABASE_URL)

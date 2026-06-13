@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, ShieldCheck } from "lucide-react";
+import { Plus, ShieldCheck, Trash2, RotateCcw, AlertTriangle } from "lucide-react";
 import { CompanyAdminManager } from "@/components/CompanyAdminManager";
 import type { Entity, Role, UserAccount } from "@/lib/admin-data";
 import { rightsMatrix as initialRightsMatrix, roles as initialRoles, users as initialUsers } from "@/lib/admin-data";
@@ -24,6 +24,8 @@ export function TenantAdminWorkspace() {
   const [tenantId, setTenantId] = useState("acme-btp");
   const [userId, setUserId] = useState("tenant-admin-acme");
   const [entities, setEntities] = useState<Entity[]>([]);
+  const [deletedEntities, setDeletedEntities] = useState<Entity[]>([]);
+  const [deletedUsers, setDeletedUsers] = useState<UserAccount[]>([]);
   const [roles, setRoles] = useState<Role[]>(initialRoles);
   const [users, setUsers] = useState<UserAccount[]>(initialUsers);
   const [rightsMatrix, setRightsMatrix] = useState<RightsMatrixRow[]>(initialRightsMatrix);
@@ -96,8 +98,10 @@ export function TenantAdminWorkspace() {
 
       const payload = await response.json();
       setEntities(payload.entities);
+      setDeletedEntities(payload.deletedEntities ?? []);
       setRoles(payload.roles);
       setUsers(payload.users);
+      setDeletedUsers(payload.deletedUsers ?? []);
       setRightsMatrix(payload.rightsMatrix);
       setLoadStatus("Synchronise");
     }
@@ -127,6 +131,61 @@ export function TenantAdminWorkspace() {
     const payload = await response.json();
     setEntities((current) => [payload.data, ...current]);
     setEntityDraft({ name: "", type: "Site" });
+    setEntityStatus("Synchronise");
+  }
+
+  function daysUntilPurge(deletedAt: string): number {
+    const diff = Date.now() - new Date(deletedAt).getTime();
+    return Math.max(0, 30 - Math.floor(diff / (24 * 60 * 60 * 1000)));
+  }
+
+  async function deleteEntity(entity: Entity) {
+    const optimistic = entities.filter((e) => e.id !== entity.id);
+    setEntities(optimistic);
+    const trashed = { ...entity, deletedAt: new Date().toISOString(), active: false };
+    setDeletedEntities((prev) => [trashed, ...prev]);
+    setEntityStatus("Suppression...");
+    const response = await fetch(`/api/admin/entities/${entity.id}?tenantId=${tenantId}&userId=${userId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      setEntities(entities);
+      setDeletedEntities((prev) => prev.filter((e) => e.id !== entity.id));
+      setEntityStatus(`Erreur (${response.status})`);
+      return;
+    }
+    setEntityStatus("Synchronise");
+  }
+
+  async function restoreDeletedEntity(entity: Entity) {
+    setDeletedEntities((prev) => prev.filter((e) => e.id !== entity.id));
+    setEntities((prev) => [{ ...entity, deletedAt: undefined, active: true }, ...prev]);
+    setEntityStatus("Restauration...");
+    const response = await fetch(`/api/admin/entities/${entity.id}?tenantId=${tenantId}&userId=${userId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restore: true }),
+    });
+    if (!response.ok) {
+      setDeletedEntities((prev) => [entity, ...prev]);
+      setEntities((prev) => prev.filter((e) => e.id !== entity.id));
+      setEntityStatus(`Erreur (${response.status})`);
+      return;
+    }
+    setEntityStatus("Synchronise");
+  }
+
+  async function permanentDelete(entity: Entity) {
+    setDeletedEntities((prev) => prev.filter((e) => e.id !== entity.id));
+    setEntityStatus("Suppression definitive...");
+    const response = await fetch(`/api/admin/entities/${entity.id}?tenantId=${tenantId}&userId=${userId}&permanent=true`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      setDeletedEntities((prev) => [entity, ...prev]);
+      setEntityStatus(`Erreur (${response.status})`);
+      return;
+    }
     setEntityStatus("Synchronise");
   }
 
@@ -185,6 +244,7 @@ export function TenantAdminWorkspace() {
     setRightsMatrix((current) => [
       {
         role: payload.data.name,
+        perimetre: payload.data.scope,
         modules: payload.data.permissions.includes("module:view") ? "Modules autorises" : "Administration",
         actions: payload.data.permissions.join(", "),
       },
@@ -247,11 +307,13 @@ export function TenantAdminWorkspace() {
 
       <CompanyAdminManager
         initialUsers={users}
+        initialDeletedUsers={deletedUsers}
         roles={roles}
         entities={activeEntities.map((entity) => entity.name)}
         tenantId={tenantId}
         userId={userId}
         onUsersChange={setUsers}
+        onDeletedUsersChange={setDeletedUsers}
       />
 
       <section className="splitGrid">
@@ -300,9 +362,18 @@ export function TenantAdminWorkspace() {
                     <td>{entity.type}</td>
                     <td>{entity.users}</td>
                     <td><span className={entity.active ? "status ok" : "status warn"}>{entity.active ? "Active" : "Inactive"}</span></td>
-                    <td>
+                    <td style={{ display: "flex", gap: "6px" }}>
                       <button className="ghostButton" onClick={() => toggleEntity(entity)} type="button">
                         {entity.active ? "Suspendre" : "Activer"}
+                      </button>
+                      <button
+                        className="ghostButton"
+                        onClick={() => deleteEntity(entity)}
+                        type="button"
+                        style={{ color: "var(--danger, #e11d48)", borderColor: "var(--danger, #e11d48)" }}
+                        title="Supprimer (corbeille 30 jours)"
+                      >
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
@@ -374,6 +445,73 @@ export function TenantAdminWorkspace() {
           </div>
         </article>
       </section>
+
+      {deletedEntities.length > 0 && (
+        <section className="panel" id="trash" style={{ marginBottom: "1.5rem" }}>
+          <div className="panelHeader">
+            <div>
+              <h2 style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Trash2 size={18} style={{ color: "var(--danger, #e11d48)" }} />
+                Corbeille
+              </h2>
+              <p>Entites supprimees — restauration possible, suppression definitive apres 30 jours.</p>
+            </div>
+            <span className="status warn">{deletedEntities.length} element{deletedEntities.length > 1 ? "s" : ""}</span>
+          </div>
+          <div className="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Entite</th>
+                  <th>Type</th>
+                  <th>Supprime le</th>
+                  <th>Jours restants</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedEntities.map((entity) => {
+                  const days = entity.deletedAt ? daysUntilPurge(entity.deletedAt) : 0;
+                  return (
+                    <tr key={entity.id}>
+                      <td style={{ color: "var(--muted, #6b7280)", textDecoration: "line-through" }}>{entity.name}</td>
+                      <td>{entity.type}</td>
+                      <td>{entity.deletedAt ? new Date(entity.deletedAt).toLocaleDateString("fr-FR") : "—"}</td>
+                      <td>
+                        <span className={days <= 3 ? "status danger" : days <= 7 ? "status warn" : "status ok"}>
+                          {days === 0 ? "Expire" : `${days}j`}
+                        </span>
+                      </td>
+                      <td style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          className="ghostButton"
+                          onClick={() => restoreDeletedEntity(entity)}
+                          type="button"
+                          title="Restaurer l'entite"
+                          style={{ display: "flex", alignItems: "center", gap: "4px" }}
+                        >
+                          <RotateCcw size={14} />
+                          Restaurer
+                        </button>
+                        <button
+                          className="ghostButton"
+                          onClick={() => permanentDelete(entity)}
+                          type="button"
+                          title="Supprimer definitivement"
+                          style={{ color: "var(--danger, #e11d48)", borderColor: "var(--danger, #e11d48)", display: "flex", alignItems: "center", gap: "4px" }}
+                        >
+                          <AlertTriangle size={14} />
+                          Supprimer def.
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="splitGrid">
         <article className="panel" id="users">

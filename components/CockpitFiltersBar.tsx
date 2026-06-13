@@ -2,14 +2,14 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Building2, CalendarDays, ChevronDown, FolderOpen, MapPin, X } from "lucide-react";
+import { CalendarDays, ChevronDown, FolderOpen, MapPin, X } from "lucide-react";
 import { readCockpitFilter, writeCockpitFilter } from "@/lib/use-cockpit-filter";
 import { getSitesByTenant, cityForSiteId } from "@/lib/sites-catalog";
 import { getProjectsForSites } from "@/lib/projects-data";
-import { tenants } from "@/lib/tenant-data";
 import { demoSessions } from "@/lib/permissions";
 
 type Pos = { top: number; left: number; width: number };
+const fallbackTenantId = demoSessions.find((s) => s.tenantId)?.tenantId ?? "";
 
 function MultiSelectDropdown({
   label,
@@ -164,112 +164,6 @@ function MultiSelectDropdown({
   );
 }
 
-// ── SingleSelectDropdown (pour Entreprise) ────────────────────────────────────
-function SingleSelectDropdown({
-  label,
-  icon: Icon,
-  options,
-  selected,
-  onChange,
-}: {
-  label: string;
-  icon: React.ElementType;
-  options: { value: string; label: string }[];
-  selected: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen]       = useState(false);
-  const [pos, setPos]         = useState<Pos | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const btnRef  = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  useLayoutEffect(() => {
-    if (!open || !btnRef.current) { setPos(null); return; }
-    const r = btnRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 8, left: r.left, width: Math.max(r.width, 200) });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onOutside(e: MouseEvent) {
-      const t = e.target as Node;
-      if (btnRef.current?.contains(t) || dropRef.current?.contains(t)) return;
-      setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", onOutside);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onOutside);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const selectedLabel = options.find((o) => o.value === selected)?.label ?? label;
-
-  const dropdownContent = (
-    <div
-      ref={dropRef}
-      style={{
-        position: "fixed",
-        top: pos?.top ?? 0,
-        left: pos?.left ?? 0,
-        minWidth: pos?.width ?? 200,
-        zIndex: 99999,
-        background: "var(--panel, #fff)",
-        border: "1px solid var(--line, #e2e8f0)",
-        borderRadius: 12,
-        boxShadow: "0 16px 48px rgba(0,0,0,0.18)",
-        padding: 6,
-        display: "flex",
-        flexDirection: "column" as const,
-        gap: 2,
-      }}
-    >
-      {options.map((opt) => {
-        const active = opt.value === selected;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => { onChange(opt.value); setOpen(false); }}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "8px 12px", borderRadius: 8,
-              border: "none", cursor: "pointer", fontSize: 13,
-              fontWeight: active ? 600 : 400, textAlign: "left",
-              color: active ? "var(--primary, #0f766e)" : "var(--ink, #1e293b)",
-              background: active ? "var(--primary-faint, #f0fdf4)" : "transparent",
-            }}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        className={`cockpitMultiSelectBtn${selected ? " hasSelection" : ""}`}
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-      >
-        <Icon size={13} className="cockpitFilterIcon" />
-        <span>{selectedLabel}</span>
-        <ChevronDown size={12} className={`cockpitFilterChevron${open ? " rotated" : ""}`} />
-      </button>
-      {mounted && open && pos && createPortal(dropdownContent, document.body)}
-    </>
-  );
-}
-
 // ── DateRangePicker ───────────────────────────────────────────────────────────
 const dateInputStyle: React.CSSProperties = {
   width: "100%", padding: "7px 10px",
@@ -402,7 +296,7 @@ export function CockpitFiltersBar() {
     setDateFin(f.dateFin ?? "");
 
     // Initialiser le tenantId : soit depuis le filtre sauvegardé, soit depuis la session
-    const savedTenant = f.tenantId ?? session.tenantId ?? tenants[0]?.id ?? "";
+    const savedTenant = f.tenantId ?? session.tenantId ?? fallbackTenantId;
     setTenantId(savedTenant);
 
     function onSession(e: Event) {
@@ -410,7 +304,7 @@ export function CockpitFiltersBar() {
       const nextSession = demoSessions.find((s) => s.userId === next) ?? demoSessions[1];
       setUserId(nextSession.userId);
       // Changer de session réinitialise les filtres au périmètre du nouveau user
-      const newTenant = nextSession.tenantId ?? tenants[0]?.id ?? "";
+      const newTenant = nextSession.tenantId ?? fallbackTenantId;
       setTenantId(newTenant);
       setSiteIds([]);
       setProjets([]);
@@ -426,9 +320,6 @@ export function CockpitFiltersBar() {
   );
 
   const isSuperAdmin = session.role === "SUPER_ADMIN";
-
-  // Options entreprises (super admin uniquement)
-  const tenantOptions = tenants.map((t) => ({ value: t.id, label: t.name }));
 
   // Sites disponibles pour le tenant + scope de la session
   const availableSites = useMemo(() => {
@@ -474,13 +365,6 @@ export function CockpitFiltersBar() {
     });
   }
 
-  function onTenantChange(next: string) {
-    setTenantId(next);
-    setSiteIds([]);
-    setProjets([]);
-    commit({ tenantId: next, siteIds: [], projets: [] });
-  }
-
   function onSitesChange(next: string[]) {
     // Purger les projets hors des nouveaux sites
     const newSitesSet = new Set(next.length ? next : availableSites.map((s) => s.id));
@@ -509,17 +393,6 @@ export function CockpitFiltersBar() {
 
   return (
     <div className="cockpitFiltersBar">
-      {/* Entreprise — visible uniquement pour SUPER_ADMIN */}
-      {isSuperAdmin && (
-        <SingleSelectDropdown
-          label="Toutes les entreprises"
-          icon={Building2}
-          options={tenantOptions}
-          selected={tenantId}
-          onChange={onTenantChange}
-        />
-      )}
-
       {/* Sites — cascade depuis le tenant */}
       <MultiSelectDropdown
         label="Tous les sites"

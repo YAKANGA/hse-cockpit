@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, PolarAngleAxis, PolarGrid,
   Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine,
 } from "recharts";
 import { ppeRecords } from "@/lib/ppe-data";
 import { AlertTriangle, CheckCircle2, Package, Clock } from "lucide-react";
-import { useCockpitFilter } from "@/lib/use-cockpit-filter";
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
 import { isoDateInRange } from "@/lib/date-utils";
 
 const TODAY = new Date("2026-06-04");
@@ -22,12 +23,17 @@ const ALL_CATS = ["Toutes", ...Array.from(new Set(ppeRecords.map((r) => r.catego
 export function EpiDashboardPanel() {
   const [mounted, setMounted] = useState(false);
   const [catFilter, setCatFilter] = useState("Toutes");
-  const { dateDebut, dateFin } = useCockpitFilter();
+  const globalFilter = useCockpitFilter();
+  const { dateDebut, dateFin } = globalFilter;
+  const activeSites = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   useEffect(() => { setMounted(true); }, []);
 
   const baseRecords = useMemo(() =>
-    ppeRecords.filter((r) => isoDateInRange(r.dateAchat, dateDebut, dateFin)),
-  [dateDebut, dateFin]);
+    ppeRecords.filter((r) =>
+      (!activeSites || activeSites.includes(r.site)) &&
+      isoDateInRange(r.dateAchat, dateDebut, dateFin)
+    ),
+  [activeSites, dateDebut, dateFin]);
 
   const enriched = useMemo(() =>
     baseRecords
@@ -111,7 +117,7 @@ export function EpiDashboardPanel() {
               <span style={{ fontSize:11, color:"var(--muted)" }}>{label}</span>
               <Icon size={14} style={{ color }} />
             </div>
-            <strong style={{ color, fontSize:26, fontWeight:700, lineHeight:1 }}>{value}</strong>
+            <strong style={{ color, fontSize:20, fontWeight:700, lineHeight:1 }}>{value}</strong>
             <div style={{ width:"100%", height:3, background:"var(--line)", borderRadius:99, marginTop:4 }}>
               <div style={{ width:`${Math.round((value / enriched.length) * 100)}%`, height:"100%", background:color, borderRadius:99 }} />
             </div>

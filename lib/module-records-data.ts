@@ -2,8 +2,9 @@ export type ModuleRecord = {
   id: string;
   moduleId: string;
   date: string;
-  site: string;       // ville
-  projectId: string;  // projet rattaché à la ville
+  tenantId: string;   // entreprise propriétaire — dérivé de projects-data via projectId
+  site: string;       // ville (= HSESite.name) — clé legacy pour filtres
+  projectId: string;  // projet rattaché au site
   projectName: string;
   entity: string;
   label: string;
@@ -14,7 +15,12 @@ export type ModuleRecord = {
   dueDate: string;
 };
 
-export const moduleRecords: ModuleRecord[] = [
+import { tenantIdForProjectId } from "@/lib/projects-data";
+export { tenantIdForProjectId };
+
+type SeedRecord = Omit<ModuleRecord, "tenantId">;
+
+const seedRecords: SeedRecord[] = [
   {
     id: "evt-001",
     moduleId: "events",
@@ -593,14 +599,20 @@ export const moduleRecords: ModuleRecord[] = [
   },
 ];
 
-export function getModuleRecords(moduleId: string) {
+// Enrich seed records with tenantId derived from their projectId
+export const moduleRecords: ModuleRecord[] = seedRecords.map((r) => ({
+  ...r,
+  tenantId: tenantIdForProjectId(r.projectId) ?? "acme-btp",
+}));
+
+export function getModuleRecords(moduleId: string): ModuleRecord[] {
   return moduleRecords.filter((r) => r.moduleId === moduleId);
 }
 
-export function getRecordsByProject(projectId: string) {
+export function getRecordsByProject(projectId: string): ModuleRecord[] {
   return moduleRecords.filter((r) => r.projectId === projectId);
 }
 
-export function getRecordsByCity(city: string) {
+export function getRecordsByCity(city: string): ModuleRecord[] {
   return moduleRecords.filter((r) => r.site === city);
 }

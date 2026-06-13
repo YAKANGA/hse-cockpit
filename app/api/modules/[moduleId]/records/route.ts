@@ -30,6 +30,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ modu
     // SQLite unavailable — fall back to in-memory only
   }
 
-  const records = [...inMemory, ...dbRecords, ...getModuleRecords(moduleId)];
+  const dbAndMemIds = new Set([...inMemory.map((r) => r.id), ...dbRecords.map((r) => r.id)]);
+  const seedRecords = getModuleRecords(moduleId).filter(
+    (r) => !dbAndMemIds.has(r.id) && (!tenantId || r.tenantId === tenantId),
+  );
+  const records = [...inMemory, ...dbRecords, ...seedRecords];
   return Response.json({ moduleId, records, count: records.length });
 }

@@ -180,7 +180,7 @@ export const moduleGovernance: ModuleGovernance[] = [
   {
     moduleId: "ppe",
     objective: "Maitriser l'inventaire EPI, les dotations, expirations, controles periodiques et besoins de reapprovisionnement.",
-    ownerRole: "Gestionnaire EPI / Responsable HSE chantier",
+    ownerRole: "Gestionnaire EPI / Responsable HSE projet",
     workflow: [
       "Inventaire initial",
       "Attribution aux equipes",
@@ -202,10 +202,10 @@ export const moduleGovernance: ModuleGovernance[] = [
     ],
     permissions: [
       "Gestionnaire EPI: inventaire et attribution",
-      "HSE chantier: validation des controles",
+      "HSE projet: validation des controles",
       "Direction: consultation stock et couts",
     ],
-    reports: ["Inventaire EPI", "EPI expires", "Stock critique", "Valorisation du stock", "Dotations par chantier"],
+    reports: ["Inventaire EPI", "EPI expires", "Stock critique", "Valorisation du stock", "Dotations par projet"],
     operationalRisks: [
       "EPI indisponibles lors des travaux critiques",
       "EPI expires ou non conformes encore utilises",

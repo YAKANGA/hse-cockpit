@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
 import { CheckCircle2, Clock, AlertCircle, Calendar } from "lucide-react";
@@ -68,12 +69,29 @@ const MOIS_ISO: Record<string, string> = {
   "Octobre":"2026-10","Novembre":"2026-11","Decembre":"2026-12",
 };
 
+const COL_DEFS_PLAN = [
+  { key:"trimestre",   label:"Trim.",       get:(p: ActivitePlan) => p.trimestre },
+  { key:"mois",        label:"Mois",        get:(p: ActivitePlan) => p.mois },
+  { key:"categorie",   label:"Catégorie",   get:(p: ActivitePlan) => p.categorie },
+  { key:"responsable", label:"Responsable", get:(p: ActivitePlan) => p.responsable },
+  { key:"site",        label:"Site",        get:(p: ActivitePlan) => p.site },
+  { key:"statut",      label:"Statut",      get:(p: ActivitePlan) => p.statut },
+];
+
 export function PlanificationHsePanel() {
   const [trimestre, setTrimestre] = useState<Trimestre | "Tous">("Tous");
   const [categorie, setCategorie] = useState("Toutes");
   const globalFilter = useCockpitFilter();
   const { dateDebut, dateFin } = globalFilter;
   const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
+
+  // Column filter state
+  const [mounted, setMounted] = useState(false);
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+  const [openCol, setOpenCol] = useState<string | null>(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  useEffect(() => { setMounted(true); }, []);
 
   const baseData = useMemo(() => {
     const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
@@ -99,6 +117,22 @@ export function PlanificationHsePanel() {
     [baseData, trimestre, categorie]
   );
 
+  const colOptions = useMemo(() =>
+    Object.fromEntries(COL_DEFS_PLAN.map(({ key, get }) => [
+      key, Array.from(new Set(filtered.map(get))).sort(),
+    ])),
+  [filtered]);
+
+  const tableData = useMemo(() =>
+    filtered.filter((p) =>
+      COL_DEFS_PLAN.every(({ key, get }) => {
+        if (!(key in colFilters)) return true;
+        const vals = colFilters[key] ?? [];
+        return vals.length === 0 ? false : vals.includes(get(p));
+      })
+    ),
+  [filtered, colFilters]);
+
   const summary = useMemo(() => ({
     total:     baseData.length,
     realisees: baseData.filter((p) => p.statut === "Realisee").length,
@@ -122,6 +156,33 @@ export function PlanificationHsePanel() {
   const budgetConsomme = summary.budgetTotal > 0
     ? Math.round((summary.budgetConsomme / summary.budgetTotal) * 100)
     : 0;
+
+  function toggleColValue(col: string, val: string) {
+    setColFilters((prev) => {
+      const all = colOptions[col] ?? [];
+      const inPrev = col in prev;
+      const cur = inPrev ? (prev[col] ?? []) : all;
+      let next: string[];
+      if (!inPrev)               { next = all.filter((v) => v !== val); }
+      else if (cur.includes(val)){ next = cur.filter((v) => v !== val); }
+      else                       { next = [...cur, val]; }
+      if (next.length === all.length) {
+        const copy = { ...prev }; delete copy[col]; return copy;
+      }
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function openDropdown(col: string) {
+    if (openCol === col) { setOpenCol(null); return; }
+    const btn = btnRefs.current[col];
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+    setOpenCol(col);
+  }
+
+  const hasAnyColFilter = Object.keys(colFilters).length > 0;
 
   return (
     <section className="sectionBlock">
@@ -206,23 +267,148 @@ export function PlanificationHsePanel() {
                     color: categorie === c ? "#fff" : "var(--ink)" }}>{c}</button>
               ))}
             </div>
-            <span style={{ fontSize:12, color:"var(--muted)", marginLeft:2, whiteSpace:"nowrap" }}>{filtered.length} activité{filtered.length > 1 ? "s" : ""}</span>
+            <span style={{ fontSize:12, color:"var(--muted)", marginLeft:2, whiteSpace:"nowrap" }}>
+              {hasAnyColFilter ? `${tableData.length}/${filtered.length}` : `${filtered.length}`} activité{filtered.length > 1 ? "s" : ""}
+            </span>
+            {hasAnyColFilter && (
+              <button type="button" onClick={() => setColFilters({})}
+                style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:6, border:"1.5px solid #dc2626", cursor:"pointer", background:"#fef2f2", color:"#dc2626" }}>
+                Réinitialiser filtres colonnes
+              </button>
+            )}
           </div>
         </div>
 
         <article className="panel" style={{ overflow:"hidden" }}>
+          {/* Portal dropdown for column filters */}
+          {mounted && openCol && createPortal(
+            <>
+              <div style={{ position:"fixed", inset:0, zIndex:9998 }} onClick={() => setOpenCol(null)} />
+              <div style={{ position:"absolute", top:dropPos.top+2, left:dropPos.left, zIndex:9999, background:"#fff", border:"1px solid #e5e7eb", borderRadius:8, boxShadow:"0 8px 28px rgba(0,0,0,0.14)", minWidth:190, maxHeight:310, display:"flex", flexDirection:"column" }}>
+                <div style={{ overflowY:"auto", flex:1 }}>
+                  {(colOptions[openCol] ?? []).map((opt) => {
+                    const isFiltering = openCol in colFilters;
+                    const cur = isFiltering ? (colFilters[openCol] ?? []) : null;
+                    const checked = cur === null || cur.includes(opt);
+                    return (
+                      <label key={opt} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 12px", cursor:"pointer", fontSize:12, borderBottom:"1px solid #f1f5f9", background:"#fff" }}
+                        onMouseEnter={(ev) => { ev.currentTarget.style.background = "#f3f4f6"; }}
+                        onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; }}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleColValue(openCol, opt)}
+                          style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }} />
+                        <span style={{ fontWeight: checked ? 600 : 400, color: checked ? "#111827" : "#9ca3af" }}>{opt}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <label style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 12px", borderTop:"1px solid #e5e7eb", cursor:"pointer", fontSize:12, background:"#f9fafb", borderRadius:"0 0 8px 8px" }}>
+                  <input type="checkbox" checked={!(openCol in colFilters)}
+                    ref={(el) => { if (el) el.indeterminate = (openCol in colFilters) && (colFilters[openCol]?.length ?? 0) > 0; }}
+                    onChange={() => {
+                      const isAll = !(openCol in colFilters);
+                      if (isAll) { setColFilters((p) => ({ ...p, [openCol]: [] })); }
+                      else { setColFilters((p) => { const c = {...p}; delete c[openCol]; return c; }); }
+                    }}
+                    style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }} />
+                  <span style={{ fontWeight:600, color:"#374151" }}>Tout sélectionner</span>
+                </label>
+              </div>
+            </>,
+            document.body
+          )}
+
           <div className="tableWrap">
             <table>
               <thead>
                 <tr>
-                  <th>Trim.</th><th>Mois</th><th>Catégorie</th><th>Activité</th>
-                  <th>Responsable</th><th>Site</th>
+                  {/* Filterable: Trim. */}
+                  <th>
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <span>Trim.</span>
+                      <button type="button"
+                        ref={(el) => { btnRefs.current["trimestre"] = el; }}
+                        onClick={() => openDropdown("trimestre")}
+                        title="Filtrer par trimestre"
+                        style={{ border:"none", background:"none", cursor:"pointer", padding:"1px 3px", borderRadius:4, display:"flex", alignItems:"center", color: "trimestre" in colFilters ? "#2563eb" : "var(--muted)", fontSize:11 }}>
+                        {"trimestre" in colFilters ? "▼" : "⏷"}
+                      </button>
+                    </div>
+                  </th>
+                  {/* Filterable: Mois */}
+                  <th>
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <span>Mois</span>
+                      <button type="button"
+                        ref={(el) => { btnRefs.current["mois"] = el; }}
+                        onClick={() => openDropdown("mois")}
+                        title="Filtrer par mois"
+                        style={{ border:"none", background:"none", cursor:"pointer", padding:"1px 3px", borderRadius:4, display:"flex", alignItems:"center", color: "mois" in colFilters ? "#2563eb" : "var(--muted)", fontSize:11 }}>
+                        {"mois" in colFilters ? "▼" : "⏷"}
+                      </button>
+                    </div>
+                  </th>
+                  {/* Filterable: Catégorie */}
+                  <th>
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <span>Catégorie</span>
+                      <button type="button"
+                        ref={(el) => { btnRefs.current["categorie"] = el; }}
+                        onClick={() => openDropdown("categorie")}
+                        title="Filtrer par catégorie"
+                        style={{ border:"none", background:"none", cursor:"pointer", padding:"1px 3px", borderRadius:4, display:"flex", alignItems:"center", color: "categorie" in colFilters ? "#2563eb" : "var(--muted)", fontSize:11 }}>
+                        {"categorie" in colFilters ? "▼" : "⏷"}
+                      </button>
+                    </div>
+                  </th>
+                  {/* Plain: Activité */}
+                  <th>Activité</th>
+                  {/* Filterable: Responsable */}
+                  <th>
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <span>Responsable</span>
+                      <button type="button"
+                        ref={(el) => { btnRefs.current["responsable"] = el; }}
+                        onClick={() => openDropdown("responsable")}
+                        title="Filtrer par responsable"
+                        style={{ border:"none", background:"none", cursor:"pointer", padding:"1px 3px", borderRadius:4, display:"flex", alignItems:"center", color: "responsable" in colFilters ? "#2563eb" : "var(--muted)", fontSize:11 }}>
+                        {"responsable" in colFilters ? "▼" : "⏷"}
+                      </button>
+                    </div>
+                  </th>
+                  {/* Filterable: Site */}
+                  <th>
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <span>Site</span>
+                      <button type="button"
+                        ref={(el) => { btnRefs.current["site"] = el; }}
+                        onClick={() => openDropdown("site")}
+                        title="Filtrer par site"
+                        style={{ border:"none", background:"none", cursor:"pointer", padding:"1px 3px", borderRadius:4, display:"flex", alignItems:"center", color: "site" in colFilters ? "#2563eb" : "var(--muted)", fontSize:11 }}>
+                        {"site" in colFilters ? "▼" : "⏷"}
+                      </button>
+                    </div>
+                  </th>
+                  {/* Plain: Budget */}
                   <th style={{ textAlign:"right" }}>Budget (FCFA)</th>
-                  <th>Statut</th><th>Commentaire</th>
+                  {/* Filterable: Statut */}
+                  <th>
+                    <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                      <span>Statut</span>
+                      <button type="button"
+                        ref={(el) => { btnRefs.current["statut"] = el; }}
+                        onClick={() => openDropdown("statut")}
+                        title="Filtrer par statut"
+                        style={{ border:"none", background:"none", cursor:"pointer", padding:"1px 3px", borderRadius:4, display:"flex", alignItems:"center", color: "statut" in colFilters ? "#2563eb" : "var(--muted)", fontSize:11 }}>
+                        {"statut" in colFilters ? "▼" : "⏷"}
+                      </button>
+                    </div>
+                  </th>
+                  {/* Plain: Commentaire */}
+                  <th>Commentaire</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
+                {tableData.map((p) => {
                   const Icon = STATUT_ICON[p.statut];
                   return (
                     <tr key={p.id}>
@@ -249,7 +435,7 @@ export function PlanificationHsePanel() {
                     </tr>
                   );
                 })}
-                {filtered.length === 0 && (
+                {tableData.length === 0 && (
                   <tr>
                     <td colSpan={9} style={{ textAlign:"center", padding:"28px 0", fontSize:13, color:"var(--muted)" }}>
                       Aucune activité ne correspond aux filtres sélectionnés.

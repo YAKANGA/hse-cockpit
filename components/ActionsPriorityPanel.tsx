@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine,
@@ -187,16 +188,16 @@ export function ActionsPriorityPanel() {
           <div className="chart compact">
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={bySiteStatut} barSize={20}>
+                <BarChart data={bySiteStatut} barSize={8} barCategoryGap="30%" barGap={3}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" vertical={false} />
                   <XAxis dataKey="site" tick={{ fontSize:11 }} tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ borderRadius:8, fontSize:12 }} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:11 }} />
-                  <Bar dataKey="Clos"       name="Clôturées"  fill="#0f766e" stackId="a" />
-                  <Bar dataKey="En cours"   name="En cours"   fill="#2563eb" stackId="a" />
-                  <Bar dataKey="Ouvert"     name="Ouvertes"   fill="#b45309" stackId="a" />
-                  <Bar dataKey="En retard"  name="En retard"  fill="#c2410c" stackId="a" radius={[4,4,0,0]} />
+                  <Bar dataKey="Clos"       name="Clôturées"  fill="#0f766e" radius={[4,4,0,0]} />
+                  <Bar dataKey="En cours"   name="En cours"   fill="#2563eb" radius={[4,4,0,0]} />
+                  <Bar dataKey="Ouvert"     name="Ouvertes"   fill="#d97706" radius={[4,4,0,0]} />
+                  <Bar dataKey="En retard"  name="En retard"  fill="#dc2626" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : <div className="chartSkeleton" />}

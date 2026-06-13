@@ -48,7 +48,7 @@ export const importHistory: ImportHistoryItem[] = [
     tenant: "ACME BTP",
     entity: "Projet San Pedro",
     module: "EPI",
-    filename: "inventaire_epi_chantier.xlsx",
+    filename: "inventaire_epi_projet.xlsx",
     rows: 64,
     acceptedRows: 61,
     rejectedRows: 3,

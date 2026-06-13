@@ -9,7 +9,8 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const session = getSessionFromRequest(request);
-  const tenantId = url.searchParams.get("tenantId") ?? session.tenantId ?? "acme-btp";
+  const tenantId = url.searchParams.get("tenantId") ?? session.tenantId;
+  if (!tenantId) return Response.json({ error: "tenantId requis" }, { status: 400 });
 
   try {
     const { getTenantModules } = await import("@/lib/db-auto");
@@ -33,7 +34,8 @@ export async function POST(request: Request) {
 
   const session = getSessionFromRequest(request);
   const body = await request.json() as { tenantId?: string; moduleId: string; active: boolean };
-  const tenantId = body.tenantId ?? session.tenantId ?? "acme-btp";
+  const tenantId = body.tenantId ?? session.tenantId;
+  if (!tenantId) return Response.json({ error: "tenantId requis" }, { status: 400 });
 
   try {
     const { setTenantModuleActive } = await import("@/lib/db-auto");

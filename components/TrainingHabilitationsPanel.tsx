@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
-import { HABILITATIONS, getTrainingSummary, type StatutHabilitation } from "@/lib/training-data";
+import { HABILITATIONS, type StatutHabilitation } from "@/lib/training-data";
 import { AlertTriangle, CheckCircle2, Clock, RefreshCw } from "lucide-react";
 import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
 import { isoDateInRange } from "@/lib/date-utils";
@@ -24,10 +25,24 @@ function daysUntil(dateStr: string | null): number {
   return Math.round((new Date(dateStr).getTime() - new Date(today).getTime()) / 86400000);
 }
 
+const COL_DEFS_TRAIN = [
+  { key:"site",      label:"Site",      get:(h: typeof HABILITATIONS[0]) => h.site },
+  { key:"type",      label:"Type",      get:(h: typeof HABILITATIONS[0]) => h.type },
+  { key:"statut",    label:"Statut",    get:(h: typeof HABILITATIONS[0]) => h.statut },
+  { key:"organisme", label:"Organisme", get:(h: typeof HABILITATIONS[0]) => h.organisme },
+  { key:"poste",     label:"Poste",     get:(h: typeof HABILITATIONS[0]) => h.poste },
+];
+
 export function TrainingHabilitationsPanel() {
-  const summary = useMemo(() => getTrainingSummary(), []);
   const [type,   setType]   = useState("Tous");
   const [statut, setStatut] = useState<StatutHabilitation | "Tous">("Tous");
+
+  const [mounted, setMounted] = useState(false);
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+  const [openCol, setOpenCol] = useState<string | null>(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  useEffect(() => { setMounted(true); }, []);
 
   const globalFilter = useCockpitFilter();
   const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
@@ -43,6 +58,22 @@ export function TrainingHabilitationsPanel() {
     (type === "Tous" || h.type === type) &&
     (statut === "Tous" || h.statut === statut)
   ), [baseData, type, statut]);
+
+  const colOptions = useMemo(() =>
+    Object.fromEntries(COL_DEFS_TRAIN.map(({ key, get }) => [
+      key, Array.from(new Set(filtered.map(get))).sort(),
+    ])),
+  [filtered]);
+
+  const tableData = useMemo(() =>
+    filtered.filter((h) =>
+      COL_DEFS_TRAIN.every(({ key, get }) => {
+        if (!(key in colFilters)) return true;
+        const vals = colFilters[key] ?? [];
+        return vals.length === 0 ? false : vals.includes(get(h));
+      })
+    ),
+  [filtered, colFilters]);
 
   // Stacked bar per site (from baseData)
   const bySiteStatut = useMemo(() => {
@@ -71,12 +102,46 @@ export function TrainingHabilitationsPanel() {
       .slice(0, 8),
   [baseData]);
 
-  const valides = baseData.filter((h) => h.statut === "Valide").length;
-  const tauxAJour = baseData.length > 0 ? Math.round((valides / baseData.length) * 100) : 0;
+  const summary = useMemo(() => {
+    const total       = baseData.length;
+    const valide      = baseData.filter((h) => h.statut === "Valide").length;
+    const expire      = baseData.filter((h) => h.statut === "Expire").length;
+    const aRenouveler = baseData.filter((h) => h.statut === "A renouveler").length;
+    const enCours     = baseData.filter((h) => h.statut === "En cours").length;
+    return { total, valide, expire, aRenouveler, enCours };
+  }, [baseData]);
+  const tauxAJour = summary.total > 0 ? Math.round((summary.valide / summary.total) * 100) : 0;
 
   const filterLabel = activeSites
     ? activeSites.length === 1 ? activeSites[0] : `${activeSites.length} sites`
     : "Tous les sites";
+
+  function toggleColValue(col: string, val: string) {
+    setColFilters((prev) => {
+      const all = colOptions[col] ?? [];
+      const inPrev = col in prev;
+      const cur = inPrev ? (prev[col] ?? []) : all;
+      let next: string[];
+      if (!inPrev)               { next = all.filter((v) => v !== val); }
+      else if (cur.includes(val)){ next = cur.filter((v) => v !== val); }
+      else                       { next = [...cur, val]; }
+      if (next.length === all.length) {
+        const copy = { ...prev }; delete copy[col]; return copy;
+      }
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function openDropdown(col: string) {
+    if (openCol === col) { setOpenCol(null); return; }
+    const btn = btnRefs.current[col];
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+    setOpenCol(col);
+  }
+
+  const hasAnyColFilter = Object.keys(colFilters).length > 0;
 
   return (
     <section className="sectionBlock">
@@ -107,7 +172,7 @@ export function TrainingHabilitationsPanel() {
             <strong style={{ fontSize:28, fontWeight:700, color }}>{count}</strong>
             <span style={{ fontSize:12 }}>{label}</span>
             <div style={{ width:"100%", height:3, background:"var(--line)", borderRadius:99, marginTop:2 }}>
-              <div style={{ width:`${Math.round((count / summary.total) * 100)}%`, height:"100%", background:color, borderRadius:99 }} />
+              <div style={{ width:`${summary.total > 0 ? Math.round((count / summary.total) * 100) : 0}%`, height:"100%", background:color, borderRadius:99 }} />
             </div>
           </div>
         ))}
@@ -120,17 +185,19 @@ export function TrainingHabilitationsPanel() {
           <span style={{ fontWeight:700, color: tauxAJour >= 80 ? "#16a34a" : tauxAJour >= 60 ? "#d97706" : "#dc2626" }}>{tauxAJour}%</span>
         </div>
         <div style={{ height:8, background:"var(--line)", borderRadius:99, overflow:"hidden" }}>
-          <div style={{ display:"flex", height:"100%", overflow:"hidden", borderRadius:99 }}>
-            <div style={{ width:`${tauxAJour}%`, background:"linear-gradient(90deg,#16a34a,#0f766e)", transition:"width .5s" }} />
-            <div style={{ width:`${baseData.length > 0 ? Math.round((baseData.filter(h=>h.statut==="A renouveler").length / baseData.length) * 100) : 0}%`, background:"#d97706" }} />
-            <div style={{ flex:1, background:"#dc2626" }} />
-          </div>
+          {summary.total > 0 && (
+            <div style={{ display:"flex", height:"100%", overflow:"hidden", borderRadius:99 }}>
+              <div style={{ width:`${tauxAJour}%`, background:"linear-gradient(90deg,#16a34a,#0f766e)", transition:"width .5s" }} />
+              <div style={{ width:`${Math.round((summary.aRenouveler / summary.total) * 100)}%`, background:"#d97706" }} />
+              <div style={{ flex:1, background:"#dc2626" }} />
+            </div>
+          )}
         </div>
         <div style={{ display:"flex", gap:16, marginTop:6, fontSize:11, flexWrap:"wrap" }}>
-          <span style={{ color:"#16a34a" }}>● Valides : {valides}</span>
-          <span style={{ color:"#d97706" }}>● À renouveler : {baseData.filter(h=>h.statut==="A renouveler").length}</span>
-          <span style={{ color:"#dc2626" }}>● Expirées : {baseData.filter(h=>h.statut==="Expire").length}</span>
-          <span style={{ color:"#2563eb" }}>● En cours : {baseData.filter(h=>h.statut==="En cours").length}</span>
+          <span style={{ color:"#16a34a" }}>● Valides : {summary.valide}</span>
+          <span style={{ color:"#d97706" }}>● À renouveler : {summary.aRenouveler}</span>
+          <span style={{ color:"#dc2626" }}>● Expirées : {summary.expire}</span>
+          <span style={{ color:"#2563eb" }}>● En cours : {summary.enCours}</span>
         </div>
       </div>
 
@@ -234,14 +301,129 @@ export function TrainingHabilitationsPanel() {
 
       {/* Table */}
       <article className="panel" style={{ marginTop:18 }}>
-        <div className="panelHeader"><div><h2>Registre des habilitations</h2><p>{filtered.length} enregistrement{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}.</p></div></div>
+        <div className="panelHeader">
+          <div>
+            <h2>Registre des habilitations</h2>
+            <p>
+              {tableData.length}/{filtered.length} enregistrement{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}.
+              {hasAnyColFilter && (
+                <button
+                  type="button"
+                  onClick={() => setColFilters({})}
+                  style={{ marginLeft:10, fontSize:11, color:"#2563eb", background:"none", border:"none", cursor:"pointer", textDecoration:"underline", padding:0 }}>
+                  Réinitialiser les filtres
+                </button>
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Portal dropdown */}
+        {mounted && openCol && createPortal(
+          <>
+            <div style={{ position:"fixed", inset:0, zIndex:9998 }} onClick={() => setOpenCol(null)} />
+            <div style={{ position:"absolute", top:dropPos.top+2, left:dropPos.left, zIndex:9999, background:"#fff", border:"1px solid #e5e7eb", borderRadius:8, boxShadow:"0 8px 28px rgba(0,0,0,0.14)", minWidth:190, maxHeight:310, display:"flex", flexDirection:"column" }}>
+              <div style={{ overflowY:"auto", flex:1 }}>
+                {(colOptions[openCol] ?? []).map((opt) => {
+                  const isFiltering = openCol in colFilters;
+                  const cur = isFiltering ? (colFilters[openCol] ?? []) : null;
+                  const checked = cur === null || cur.includes(opt);
+                  return (
+                    <label key={opt} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 12px", cursor:"pointer", fontSize:12, borderBottom:"1px solid #f1f5f9", background:"#fff" }}
+                      onMouseEnter={(ev) => { ev.currentTarget.style.background = "#f3f4f6"; }}
+                      onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleColValue(openCol, opt)}
+                        style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }} />
+                      <span style={{ fontWeight: checked ? 600 : 400, color: checked ? "#111827" : "#9ca3af" }}>{opt}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <label style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 12px", borderTop:"1px solid #e5e7eb", cursor:"pointer", fontSize:12, background:"#f9fafb", borderRadius:"0 0 8px 8px" }}>
+                <input type="checkbox" checked={!(openCol in colFilters)}
+                  ref={(el) => { if (el) el.indeterminate = (openCol in colFilters) && (colFilters[openCol]?.length ?? 0) > 0; }}
+                  onChange={() => {
+                    const isAll = !(openCol in colFilters);
+                    if (isAll) { setColFilters((p) => ({ ...p, [openCol]: [] })); }
+                    else { setColFilters((p) => { const c = {...p}; delete c[openCol]; return c; }); }
+                  }}
+                  style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }} />
+                <span style={{ fontWeight:600, color:"#374151" }}>Tout sélectionner</span>
+              </label>
+            </div>
+          </>,
+          document.body
+        )}
+
         <div className="tableWrap">
           <table>
             <thead>
-              <tr><th>Nom</th><th>Prénom</th><th>Poste</th><th>Site</th><th>Type</th><th>Titre</th><th>Organisme</th><th>Date formation</th><th>Expiration</th><th>Statut</th><th>Réf.</th></tr>
+              <tr>
+                <th>Nom</th>
+                <th>Prénom</th>
+                {/* Filterable: Poste */}
+                <th style={{ whiteSpace:"nowrap" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["poste"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("poste")}
+                    style={{ display:"inline-flex", alignItems:"center", gap:4, background:"none", border:"none", cursor:"pointer", padding:0, fontSize:"inherit", fontWeight:"inherit", color:"inherit" }}>
+                    Poste
+                    <span style={{ fontSize:10, color: "poste" in colFilters ? "#2563eb" : "#9ca3af" }}>▼</span>
+                  </button>
+                </th>
+                {/* Filterable: Site */}
+                <th style={{ whiteSpace:"nowrap" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["site"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("site")}
+                    style={{ display:"inline-flex", alignItems:"center", gap:4, background:"none", border:"none", cursor:"pointer", padding:0, fontSize:"inherit", fontWeight:"inherit", color:"inherit" }}>
+                    Site
+                    <span style={{ fontSize:10, color: "site" in colFilters ? "#2563eb" : "#9ca3af" }}>▼</span>
+                  </button>
+                </th>
+                {/* Filterable: Type */}
+                <th style={{ whiteSpace:"nowrap" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["type"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("type")}
+                    style={{ display:"inline-flex", alignItems:"center", gap:4, background:"none", border:"none", cursor:"pointer", padding:0, fontSize:"inherit", fontWeight:"inherit", color:"inherit" }}>
+                    Type
+                    <span style={{ fontSize:10, color: "type" in colFilters ? "#2563eb" : "#9ca3af" }}>▼</span>
+                  </button>
+                </th>
+                <th>Titre</th>
+                {/* Filterable: Organisme */}
+                <th style={{ whiteSpace:"nowrap" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["organisme"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("organisme")}
+                    style={{ display:"inline-flex", alignItems:"center", gap:4, background:"none", border:"none", cursor:"pointer", padding:0, fontSize:"inherit", fontWeight:"inherit", color:"inherit" }}>
+                    Organisme
+                    <span style={{ fontSize:10, color: "organisme" in colFilters ? "#2563eb" : "#9ca3af" }}>▼</span>
+                  </button>
+                </th>
+                <th>Date formation</th>
+                <th>Expiration</th>
+                {/* Filterable: Statut */}
+                <th style={{ whiteSpace:"nowrap" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["statut"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("statut")}
+                    style={{ display:"inline-flex", alignItems:"center", gap:4, background:"none", border:"none", cursor:"pointer", padding:0, fontSize:"inherit", fontWeight:"inherit", color:"inherit" }}>
+                    Statut
+                    <span style={{ fontSize:10, color: "statut" in colFilters ? "#2563eb" : "#9ca3af" }}>▼</span>
+                  </button>
+                </th>
+                <th>Réf.</th>
+              </tr>
             </thead>
             <tbody>
-              {filtered.map((h) => {
+              {tableData.map((h) => {
                 const jours  = daysUntil(h.date_expiration);
                 const urgent = h.date_expiration && jours <= 30;
                 return (

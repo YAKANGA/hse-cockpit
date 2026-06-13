@@ -1,5 +1,6 @@
 import { getImportHistory } from "@/lib/import-store";
 import { apiLimiter, rateLimitResponse, getClientIp } from "@/lib/rate-limit";
+import { getSessionFromRequest } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,12 @@ export async function GET(request: Request) {
     ...dbItems,
     ...memItems.filter((i) => !dbIds.has(i.id)),
   ].sort((a, b) => b.date.localeCompare(a.date));
+
+  // Restrict to caller's tenant unless SUPER_ADMIN
+  const session = getSessionFromRequest(request);
+  if (session.role !== "SUPER_ADMIN" && session.tenantName) {
+    merged = merged.filter((i) => i.tenant === session.tenantName || i.entity === session.tenantName);
+  }
 
   if (moduleFilter) {
     merged = merged.filter((i) => i.module.toLowerCase().includes(moduleFilter.toLowerCase()));

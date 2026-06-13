@@ -42,7 +42,7 @@ export const rolePermissions: Record<AppRole, Permission[]> = {
   SUPER_ADMIN: [
     "platform:manage-tenants",
     "tenant:manage-settings",
-    "tenant:manage-users",
+    // tenant:manage-users retiré — création d'utilisateurs réservée au TENANT_ADMIN
     "tenant:manage-roles",
     "module:view",
     "module:import",

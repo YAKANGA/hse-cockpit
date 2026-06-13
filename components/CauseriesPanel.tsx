@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line, ReferenceLine } from "recharts";
-import { CAUSERIES, getCauserieSummary } from "@/lib/causeries-data";
+import { CAUSERIES } from "@/lib/causeries-data";
 import { Users, Target, Clock, TrendingUp } from "lucide-react";
 import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
 import { isoDateInRange } from "@/lib/date-utils";
@@ -14,9 +15,23 @@ const TYPE_COLORS: Record<string, string> = {
   "Quart d'heure securite": "#7c3aed",
 };
 
+const COL_DEFS_CAUS = [
+  { key: "site",      label: "Site",      get: (c: typeof CAUSERIES[0]) => c.site },
+  { key: "animateur", label: "Animateur", get: (c: typeof CAUSERIES[0]) => c.animateur },
+  { key: "type",      label: "Type",      get: (c: typeof CAUSERIES[0]) => c.type },
+];
+
 export function CauseriesPanel() {
-  const summary = useMemo(() => getCauserieSummary(), []);
   const [typeFilter, setTypeFilter] = useState("Tous");
+
+  // Column filter state
+  const [mounted, setMounted]       = useState(false);
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+  const [openCol, setOpenCol]       = useState<string | null>(null);
+  const [dropPos, setDropPos]       = useState({ top: 0, left: 0 });
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => { setMounted(true); }, []);
 
   const globalFilter = useCockpitFilter();
   const activeSites  = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
@@ -28,6 +43,13 @@ export function CauseriesPanel() {
     ),
   [activeSites, globalFilter.dateDebut, globalFilter.dateFin]);
 
+  const summary = useMemo(() => {
+    const objectifMensuel   = 20;
+    const realisesMois      = baseData.length;
+    const tauxRealisation   = objectifMensuel > 0 ? Math.round((realisesMois / objectifMensuel) * 100) : 0;
+    return { total: baseData.length, objectifMensuel, realisesMois, tauxRealisation };
+  }, [baseData]);
+
   const filtered = useMemo(() =>
     typeFilter === "Tous" ? baseData : baseData.filter((c) => c.type === typeFilter),
   [baseData, typeFilter]);
@@ -36,6 +58,26 @@ export function CauseriesPanel() {
     filtered.reduce((s, c) => s + c.nb_participants, 0) /
     Math.max(filtered.reduce((s, c) => s + c.nb_prevus, 0), 1) * 100
   );
+
+  // Column filter options (derived from filtered)
+  const colOptions = useMemo(() =>
+    Object.fromEntries(COL_DEFS_CAUS.map(({ key, get }) => [
+      key, Array.from(new Set(filtered.map(get))).sort(),
+    ])),
+  [filtered]);
+
+  // Table data — column-filtered and sorted desc by date
+  const tableData = useMemo(() =>
+    [...filtered]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .filter((c) =>
+        COL_DEFS_CAUS.every(({ key, get }) => {
+          if (!(key in colFilters)) return true;
+          const vals = colFilters[key] ?? [];
+          return vals.length === 0 ? false : vals.includes(get(c));
+        })
+      ),
+  [filtered, colFilters]);
 
   // Timeline sorted chronologically (last 10 sessions)
   const timeline = useMemo(() =>
@@ -102,19 +144,58 @@ export function CauseriesPanel() {
     ? activeSites.length === 1 ? activeSites[0] : `${activeSites.length} sites`
     : "Tous les sites";
 
+  const hasAnyColFilter = Object.keys(colFilters).length > 0;
+
+  // Column filter logic
+  function toggleColValue(col: string, val: string) {
+    setColFilters((prev) => {
+      const all    = colOptions[col] ?? [];
+      const inPrev = col in prev;
+      const cur    = inPrev ? (prev[col] ?? []) : all;
+      let next: string[];
+      if (!inPrev)               { next = all.filter((v) => v !== val); }
+      else if (cur.includes(val)){ next = cur.filter((v) => v !== val); }
+      else                       { next = [...cur, val]; }
+      if (next.length === all.length) {
+        const copy = { ...prev }; delete copy[col]; return copy;
+      }
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function openDropdown(col: string) {
+    if (openCol === col) { setOpenCol(null); return; }
+    const btn = btnRefs.current[col];
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+    setOpenCol(col);
+  }
+
   return (
     <section className="sectionBlock">
       <div className="sectionTitle">
         <div>
           <h2>Causeries &amp; Toolbox Talks HSE</h2>
-          <p>{filtered.length}/{summary.total} causeries — {filtered.reduce((s,c)=>s+c.nb_participants,0)} participants — taux participation {participation}% — <strong>{filterLabel}</strong>.</p>
+          <p>
+            {tableData.length}/{filtered.length} causeries — {filtered.reduce((s,c)=>s+c.nb_participants,0)} participants — taux participation {participation}% — <strong>{filterLabel}</strong>.
+            {hasAnyColFilter && (
+              <button
+                type="button"
+                onClick={() => setColFilters({})}
+                style={{ marginLeft:10, fontSize:11, padding:"2px 8px", borderRadius:6, border:"1px solid #2563eb", background:"#eff6ff", color:"#2563eb", cursor:"pointer", fontWeight:600 }}
+              >
+                Réinitialiser filtres colonnes
+              </button>
+            )}
+          </p>
         </div>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+        <div style={{ display:"flex", gap:3, background:"var(--hover)", borderRadius:8, padding:"3px" }}>
           {TYPES.map((t) => (
-            <button key={t} type="button"
-              className={typeFilter === t ? "periodBtn active" : "periodBtn"}
-              style={{ fontSize:11 }}
-              onClick={() => setTypeFilter(t)}>{t}</button>
+            <button key={t} type="button" onClick={() => setTypeFilter(t)}
+              style={{ fontSize:12, fontWeight:600, padding:"4px 12px", borderRadius:6, border:"none", cursor:"pointer", transition:"all 0.15s",
+                background: typeFilter === t ? "var(--primary)" : "transparent",
+                color: typeFilter === t ? "#fff" : "var(--muted)" }}>{t}</button>
           ))}
         </div>
       </div>
@@ -238,14 +319,87 @@ export function CauseriesPanel() {
 
       {/* Table */}
       <article className="panel" style={{ marginTop:18 }}>
-        <div className="panelHeader"><div><h2>Journal des causeries</h2><p>{filtered.length} session{filtered.length > 1 ? "s" : ""} affichée{filtered.length > 1 ? "s" : ""}.</p></div></div>
+        <div className="panelHeader">
+          <div>
+            <h2>Journal des causeries</h2>
+            <p>
+              {tableData.length}/{filtered.length} session{filtered.length > 1 ? "s" : ""} affichée{filtered.length > 1 ? "s" : ""}.
+              {hasAnyColFilter && (
+                <button
+                  type="button"
+                  onClick={() => setColFilters({})}
+                  style={{ marginLeft:10, fontSize:11, padding:"2px 8px", borderRadius:6, border:"1px solid #2563eb", background:"#eff6ff", color:"#2563eb", cursor:"pointer", fontWeight:600 }}
+                >
+                  Réinitialiser
+                </button>
+              )}
+            </p>
+          </div>
+        </div>
         <div className="tableWrap">
           <table>
             <thead>
-              <tr><th>Date</th><th>Site</th><th>Animateur</th><th>Thème</th><th>Type</th><th style={{ textAlign:"center" }}>Durée (min)</th><th style={{ textAlign:"center" }}>Participants</th><th style={{ textAlign:"center" }}>Taux</th><th>Observations</th></tr>
+              <tr>
+                {/* Static: Date */}
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>Date</th>
+
+                {/* Filterable: Site */}
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["site"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("site")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "site" ? "1px solid #2563eb" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "site" ? "#eff6ff" : "site" in colFilters ? "#f0f9ff" : "transparent", color: "site" in colFilters ? "#2563eb" : "var(--fg)", transition:"all 0.12s" }}
+                  >
+                    Site
+                    {"site" in colFilters
+                      ? <span style={{ background:"#2563eb", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["site"] ?? []).length}</span>
+                      : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
+
+                {/* Filterable: Animateur */}
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["animateur"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("animateur")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "animateur" ? "1px solid #2563eb" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "animateur" ? "#eff6ff" : "animateur" in colFilters ? "#f0f9ff" : "transparent", color: "animateur" in colFilters ? "#2563eb" : "var(--fg)", transition:"all 0.12s" }}
+                  >
+                    Animateur
+                    {"animateur" in colFilters
+                      ? <span style={{ background:"#2563eb", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["animateur"] ?? []).length}</span>
+                      : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
+
+                {/* Static: Thème */}
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>Thème</th>
+
+                {/* Filterable: Type */}
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button
+                    ref={(el) => { btnRefs.current["type"] = el; }}
+                    type="button"
+                    onClick={() => openDropdown("type")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "type" ? "1px solid #2563eb" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "type" ? "#eff6ff" : "type" in colFilters ? "#f0f9ff" : "transparent", color: "type" in colFilters ? "#2563eb" : "var(--fg)", transition:"all 0.12s" }}
+                  >
+                    Type
+                    {"type" in colFilters
+                      ? <span style={{ background:"#2563eb", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["type"] ?? []).length}</span>
+                      : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
+
+                {/* Static: Durée, Participants, Taux, Observations */}
+                <th style={{ padding:"4px 8px", textAlign:"center" }}>Durée (min)</th>
+                <th style={{ padding:"4px 8px", textAlign:"center" }}>Participants</th>
+                <th style={{ padding:"4px 8px", textAlign:"center" }}>Taux</th>
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>Observations</th>
+              </tr>
             </thead>
             <tbody>
-              {[...filtered].sort((a, b) => b.date.localeCompare(a.date)).map((c) => {
+              {tableData.map((c) => {
                 const taux  = Math.round((c.nb_participants / c.nb_prevus) * 100);
                 const color = TYPE_COLORS[c.type] ?? "#94a3b8";
                 return (
@@ -268,6 +422,55 @@ export function CauseriesPanel() {
           </table>
         </div>
       </article>
+
+      {/* Portal dropdown for column filters */}
+      {mounted && openCol && createPortal(
+        <>
+          <div style={{ position:"fixed", inset:0, zIndex:9998 }} onClick={() => setOpenCol(null)} />
+          <div style={{ position:"absolute", top:dropPos.top+2, left:dropPos.left, zIndex:9999, background:"#fff", border:"1px solid #e5e7eb", borderRadius:8, boxShadow:"0 8px 28px rgba(0,0,0,0.14)", minWidth:190, maxHeight:310, display:"flex", flexDirection:"column" }}>
+            <div style={{ overflowY:"auto", flex:1 }}>
+              {(colOptions[openCol] ?? []).map((opt) => {
+                const isFiltering = openCol in colFilters;
+                const cur         = isFiltering ? (colFilters[openCol] ?? []) : null;
+                const checked     = cur === null || cur.includes(opt);
+                return (
+                  <label
+                    key={opt}
+                    style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 12px", cursor:"pointer", fontSize:12, borderBottom:"1px solid #f1f5f9", background:"#fff" }}
+                    onMouseEnter={(ev) => { ev.currentTarget.style.background = "#f3f4f6"; }}
+                    onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleColValue(openCol, opt)}
+                      style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }}
+                    />
+                    <span style={{ fontWeight: checked ? 600 : 400, color: checked ? "#111827" : "#9ca3af" }}>{opt}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <label style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 12px", borderTop:"1px solid #e5e7eb", cursor:"pointer", fontSize:12, background:"#f9fafb", borderRadius:"0 0 8px 8px" }}>
+              <input
+                type="checkbox"
+                checked={!(openCol in colFilters)}
+                ref={(el) => {
+                  if (el) el.indeterminate = (openCol in colFilters) && (colFilters[openCol]?.length ?? 0) > 0;
+                }}
+                onChange={() => {
+                  const isAll = !(openCol in colFilters);
+                  if (isAll) { setColFilters((p) => ({ ...p, [openCol]: [] })); }
+                  else { setColFilters((p) => { const c = {...p}; delete c[openCol]; return c; }); }
+                }}
+                style={{ accentColor:"#2563eb", width:14, height:14, cursor:"pointer" }}
+              />
+              <span style={{ fontWeight:600, color:"#374151" }}>Tout sélectionner</span>
+            </label>
+          </div>
+        </>,
+        document.body
+      )}
     </section>
   );
 }

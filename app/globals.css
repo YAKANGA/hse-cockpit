@@ -2522,12 +2522,12 @@ th {
 /* .modulePage now defined above with flex layout */
 
 .moduleHero {
-  min-height: 230px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 28px;
+  padding: 12px 20px;
   border-radius: 8px;
   background: linear-gradient(90deg, #101828, var(--module));
   color: #ffffff;
@@ -2557,8 +2557,8 @@ th {
 .moduleHero h1 {
   max-width: 820px;
   margin: 0;
-  font-size: 36px;
-  line-height: 1.12;
+  font-size: 20px;
+  line-height: 1.2;
 }
 
 .moduleHero p:not(.eyebrow) {
@@ -2572,7 +2572,7 @@ th {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .moduleDetailGrid {
@@ -2623,7 +2623,7 @@ th {
 
 .moduleFilterKpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -3328,7 +3328,7 @@ th {
 }
 
 .permisKpis {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .inspKpiCard {
@@ -5303,10 +5303,16 @@ th {
 
 .trainingKpis,
 .causerieKpis,
-.medicalKpis,
 .acrKpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.medicalKpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
@@ -5314,7 +5320,7 @@ th {
 .duerpKpis,
 .consumptionKpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-top: 18px;
 }
@@ -5438,8 +5444,8 @@ th {
   .execKpiGrid    { grid-template-columns: repeat(8, minmax(0, 1fr)); }
   .execKpiCard strong { font-size: 18px !important; }
   .execSynthese   { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .duerpKpis,
-  .consumptionKpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .duerpKpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .consumptionKpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1100px) {
@@ -5450,8 +5456,8 @@ th {
   .planifKpis    { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .execKpiGrid   { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .execSynthese  { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .duerpKpis,
-  .consumptionKpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .duerpKpis     { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .consumptionKpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 
 @media (max-width: 700px) {

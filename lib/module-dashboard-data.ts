@@ -1,3 +1,58 @@
+import { EVENTS, MOIS_ORDER, recordsToEvents, type EventRow } from "./events-data";
+import type { ModuleRecord } from "./module-records-data";
+
+// ─── Events: dérivé depuis EventRow[] (records ou données seed) ──────────────
+function buildEventsData(rows: EventRow[] = EVENTS): ModuleDashboardData {
+  const total      = rows.length;
+  const accidents  = rows.filter((e) => e.type === "Accident").length;
+  const incidents  = rows.filter((e) => e.type === "Incident").length;
+  const presqAcc   = rows.filter((e) => e.type === "Presqu'accident").length;
+  const graves     = rows.filter((e) => e.gravite === "Critique" || e.gravite === "Elevee").length;
+  const tauxCloture = total > 0 ? Math.round((presqAcc / total) * 100) : 0;
+
+  const sitesSet = Array.from(new Set(rows.map((e) => e.site)));
+  const siteComparison = sitesSet.map((site) => {
+    const siteEvts   = rows.filter((e) => e.site === site);
+    const siteAcc    = siteEvts.filter((e) => e.type === "Accident").length;
+    const siteGraves = siteEvts.filter((e) => e.gravite === "Critique" || e.gravite === "Elevee").length;
+    const conformite = siteEvts.length > 0
+      ? Math.max(0, Math.round(100 - (siteAcc / siteEvts.length) * 100))
+      : 100;
+    return { site, conformite, alertes: siteGraves };
+  });
+
+  const trend = MOIS_ORDER.map((mois) => ({
+    period: mois,
+    value:     rows.filter((e) => e.mois === mois).length,
+    secondary: rows.filter((e) => e.mois === mois && (e.gravite === "Critique" || e.gravite === "Elevee")).length,
+  }));
+
+  const tf = accidents > 0 ? (accidents / Math.max(total, 1) * 10).toFixed(1) : "0.0";
+  const tg = graves > 0    ? (graves / Math.max(accidents, 1)).toFixed(2)      : "0.00";
+
+  return {
+    moduleId: "events",
+    headline: [
+      { label: "Evenements declares", value: String(total),     detail: "Accidents, incidents et presqu'accidents" },
+      { label: "Evenements graves",   value: String(graves),    detail: `${Math.round(graves / Math.max(total, 1) * 100)}% du volume declare` },
+      { label: "Enquetes ouvertes",   value: String(accidents), detail: "ACR a cloturer en priorite" },
+      { label: "Taux de cloture",     value: `${tauxCloture}%`, detail: "Presqu'accidents / total declares" },
+    ],
+    trend,
+    distribution: [
+      { name: "Accident",        value: accidents },
+      { name: "Incident",        value: incidents },
+      { name: "Presqu'accident", value: presqAcc  },
+    ],
+    siteComparison,
+    table: [
+      { indicateur: "Taux de frequence (TF)", valeur: tf,        tendance: "-0.3",  statut: "Sous controle" },
+      { indicateur: "Taux de gravite (TG)",   valeur: tg,        tendance: "+0.02", statut: "Surveillance"  },
+      { indicateur: "Causes racines (ACR)",   valeur: accidents, tendance: "-1",    statut: accidents > 2 ? "Prioritaire" : "OK" },
+    ],
+  };
+}
+
 export type ModuleDashboardData = {
   moduleId: string;
   headline: {
@@ -19,43 +74,16 @@ export type ModuleDashboardData = {
     conformite: number;
     alertes: number;
   }[];
-  table: Record<string, string | number>[];
+  table: {
+    indicateur: string;
+    valeur: string | number;
+    tendance: string | number;
+    statut: string;
+  }[];
 };
 
 export const moduleDashboardData: Record<string, ModuleDashboardData> = {
-  events: {
-    moduleId: "events",
-    headline: [
-      { label: "Evenements declares", value: "284", detail: "Accidents, incidents et presqu'accidents" },
-      { label: "Evenements graves", value: "31", detail: "11% du volume declare" },
-      { label: "Enquetes ouvertes", value: "12", detail: "A cloturer en priorite" },
-      { label: "Taux de cloture", value: "88%", detail: "+4 pts vs mois precedent" },
-    ],
-    trend: [
-      { period: "Jan", value: 42, secondary: 6 },
-      { period: "Fev", value: 38, secondary: 4 },
-      { period: "Mar", value: 51, secondary: 8 },
-      { period: "Avr", value: 44, secondary: 5 },
-      { period: "Mai", value: 63, secondary: 7 },
-      { period: "Juin", value: 46, secondary: 6 },
-    ],
-    distribution: [
-      { name: "Accident", value: 48 },
-      { name: "Incident", value: 139 },
-      { name: "Presqu'accident", value: 97 },
-    ],
-    siteComparison: [
-      { site: "Abidjan", conformite: 88, alertes: 8 },
-      { site: "Bouake", conformite: 73, alertes: 14 },
-      { site: "San Pedro", conformite: 81, alertes: 6 },
-      { site: "Yamoussoukro", conformite: 90, alertes: 3 },
-    ],
-    table: [
-      { indicateur: "TF", valeur: "2.4", tendance: "-0.3", statut: "Sous controle" },
-      { indicateur: "TG", valeur: "0.18", tendance: "+0.02", statut: "Surveillance" },
-      { indicateur: "Causes racines ouvertes", valeur: 12, tendance: "-3", statut: "Prioritaire" },
-    ],
-  },
+  events: buildEventsData(),
   inspections: {
     moduleId: "inspections",
     headline: [
@@ -226,6 +254,10 @@ export const moduleDashboardData: Record<string, ModuleDashboardData> = {
   },
 };
 
-export function getModuleDashboardData(moduleId: string) {
+export function getModuleDashboardData(moduleId: string, records?: ModuleRecord[]) {
+  if (moduleId === "events" && records && records.length > 0) {
+    const evtRecords = records.filter((r) => r.moduleId === "events");
+    if (evtRecords.length > 0) return buildEventsData(recordsToEvents(evtRecords));
+  }
   return moduleDashboardData[moduleId];
 }

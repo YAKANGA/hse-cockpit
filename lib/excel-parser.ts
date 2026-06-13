@@ -68,8 +68,8 @@ const MODULE_SCHEMAS: Record<string, { key: string; label: string; required: boo
     { key: "date_achat",          label: "Date achat",           required: false, type: "date"   },
   ],
   environment: [
-    { key: "code_chantier",         label: "Code chantier",        required: true,  type: "string" },
-    { key: "chantier",              label: "Chantier",             required: true,  type: "string" },
+    { key: "code_projet",            label: "Code projet",          required: true,  type: "string" },
+    { key: "projet",                label: "Projet",               required: true,  type: "string" },
     { key: "type_travaux",          label: "Type travaux",         required: false, type: "string" },
     { key: "phase",                 label: "Phase",                required: true,  type: "string" },
     { key: "impact",                label: "Impact",               required: true,  type: "string" },
@@ -176,7 +176,7 @@ const MODULE_SCHEMAS: Record<string, { key: string; label: string; required: boo
   vbg: [
     { key: "reference",        label: "Reference (anonymisee)",       required: true,  type: "string" },
     { key: "date",             label: "Date de l'incident",           required: true,  type: "date"   },
-    { key: "site",             label: "Site / Chantier",              required: true,  type: "string" },
+    { key: "site",             label: "Site",                          required: true,  type: "string" },
     { key: "type_vbg",         label: "Type VBG",                     required: true,  type: "string" },
     { key: "auteur_allegue",   label: "Auteur allegue",               required: true,  type: "string" },
     { key: "gravite",          label: "Gravite",                      required: true,  type: "string" },

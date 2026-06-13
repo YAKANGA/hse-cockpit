@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CartesianGrid,
   Legend,
@@ -12,38 +13,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useCockpitFilter } from "@/lib/use-cockpit-filter";
-
-type MonthlyRow = {
-  mois: string;
-  heures: number;
-  accidents: number;
-  jours: number;
-  causeries: number;
-  formations: number;
-};
-
-const MONTHLY_DATA: MonthlyRow[] = [
-  { mois: "Jan", heures: 158000, accidents: 4, jours: 31, causeries: 22, formations: 5 },
-  { mois: "Fev", heures: 149000, accidents: 3, jours: 28, causeries: 19, formations: 4 },
-  { mois: "Mar", heures: 162000, accidents: 4, jours: 34, causeries: 25, formations: 6 },
-  { mois: "Avr", heures: 155000, accidents: 3, jours: 27, causeries: 21, formations: 4 },
-  { mois: "Mai", heures: 171000, accidents: 4, jours: 29, causeries: 28, formations: 7 },
-  { mois: "Juin", heures: 143000, accidents: 2, jours: 21, causeries: 16, formations: 3 },
-];
+import { useCockpitFilter, getActiveSites } from "@/lib/use-cockpit-filter";
+import {
+  type MonthlyRow,
+  MONTHLY_DATA,
+  MONTHLY_DATA_BY_SITE,
+  MONTH_ISO,
+  calcTF,
+  calcTG,
+} from "@/lib/tftg-data";
 
 const TF_OBJECTIF = 2.0;
 const TG_OBJECTIF = 0.15;
-
-function calcTF(accidents: number, heures: number) {
-  if (!heures) return 0;
-  return Math.round((accidents * 1_000_000) / heures * 10) / 10;
-}
-
-function calcTG(jours: number, heures: number) {
-  if (!heures) return 0;
-  return Math.round((jours * 1_000) / heures * 100) / 100;
-}
 
 const STATUS_CLASS: Record<string, string> = {
   ok: "status ok",
@@ -53,9 +34,15 @@ const STATUS_CLASS: Record<string, string> = {
 
 export function IndicateursTFTGDashboard() {
   const [mounted, setMounted] = useState(false);
-  useCockpitFilter();
+  const globalFilter = useCockpitFilter();
+  const { dateDebut, dateFin } = globalFilter;
+  const activeSites = useMemo(() => getActiveSites(globalFilter), [globalFilter]);
   const [hasRealData, setHasRealData] = useState(false);
   const [sourceData, setSourceData] = useState(MONTHLY_DATA);
+  const [colFilters, setColFilters] = useState<Record<string, string[]>>({});
+  const [openCol, setOpenCol] = useState<string | null>(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     setMounted(true);
@@ -70,15 +57,47 @@ export function IndicateursTFTGDashboard() {
       .catch(() => {});
   }, []);
 
+  const filteredSourceData = useMemo(() => {
+    const debutMois = dateDebut ? dateDebut.slice(0, 7) : undefined;
+    const finMois   = dateFin   ? dateFin.slice(0, 7)   : undefined;
+
+    // When site/project filter active and using static data → aggregate from per-site breakdown
+    let base: MonthlyRow[];
+    if (!hasRealData && activeSites) {
+      const sitesFiltered = MONTHLY_DATA_BY_SITE.filter((r) => activeSites.includes(r.site));
+      const map = new Map<string, MonthlyRow>();
+      for (const row of sitesFiltered) {
+        const prev = map.get(row.mois);
+        map.set(row.mois, prev
+          ? { mois: row.mois, heures: prev.heures + row.heures, accidents: prev.accidents + row.accidents,
+              jours: prev.jours + row.jours, causeries: prev.causeries + row.causeries, formations: prev.formations + row.formations }
+          : { mois: row.mois, heures: row.heures, accidents: row.accidents, jours: row.jours, causeries: row.causeries, formations: row.formations }
+        );
+      }
+      base = MONTHLY_DATA.map((m) => map.get(m.mois)).filter(Boolean) as MonthlyRow[];
+    } else {
+      base = sourceData;
+    }
+
+    if (!debutMois && !finMois) return base;
+    return base.filter((row) => {
+      const miso = MONTH_ISO[row.mois];
+      if (!miso) return true;
+      if (debutMois && miso < debutMois) return false;
+      if (finMois   && miso > finMois)   return false;
+      return true;
+    });
+  }, [sourceData, hasRealData, activeSites, dateDebut, dateFin]);
+
   const computedRows = useMemo(
     () =>
-      sourceData.map((row) => ({
+      filteredSourceData.map((row) => ({
         ...row,
         tf: calcTF(row.accidents, row.heures),
         tg: calcTG(row.jours, row.heures),
         tams: (row.causeries ?? 0) + (row.formations ?? 0),
       })),
-    [sourceData],
+    [filteredSourceData],
   );
 
   const lastTF = computedRows[computedRows.length - 1]?.tf ?? 0;
@@ -89,6 +108,47 @@ export function IndicateursTFTGDashboard() {
   const tfTrend = computedRows.length > 1
     ? computedRows[computedRows.length - 1].tf - computedRows[computedRows.length - 2].tf
     : 0;
+
+  const colOptions: Record<string, string[]> = {
+    statutTF: ["OK", "Vigilance", "Alerte"],
+  };
+
+  const tableData = useMemo(() =>
+    computedRows.filter((row) => {
+      if (!("statutTF" in colFilters)) return true;
+      const vals = colFilters["statutTF"] ?? [];
+      if (vals.length === 0) return false;
+      const status = row.tf <= TF_OBJECTIF ? "OK" : row.tf <= TF_OBJECTIF * 1.5 ? "Vigilance" : "Alerte";
+      return vals.includes(status);
+    }),
+  [computedRows, colFilters]);
+
+  function toggleColValue(col: string, val: string) {
+    setColFilters((prev) => {
+      const all = colOptions[col] ?? [];
+      const inPrev = col in prev;
+      const cur = inPrev ? (prev[col] ?? []) : all;
+      let next: string[];
+      if (!inPrev)               { next = all.filter((v) => v !== val); }
+      else if (cur.includes(val)) { next = cur.filter((v) => v !== val); }
+      else                       { next = [...cur, val]; }
+      if (next.length === all.length) {
+        const copy = { ...prev }; delete copy[col]; return copy;
+      }
+      return { ...prev, [col]: next };
+    });
+  }
+
+  function openDropdown(col: string) {
+    if (openCol === col) { setOpenCol(null); return; }
+    const btn = btnRefs.current[col];
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX });
+    setOpenCol(col);
+  }
+
+  const hasAnyColFilter = Object.keys(colFilters).length > 0;
 
   function tfStatus(val: number) {
     if (val <= TF_OBJECTIF) return "ok";
@@ -198,11 +258,51 @@ export function IndicateursTFTGDashboard() {
       </div>
 
       <article className="panel" style={{ marginTop: 18 }}>
+        {mounted && openCol && createPortal(
+          <>
+            <div style={{ position:"fixed", inset:0, zIndex:9998 }} onClick={() => setOpenCol(null)} />
+            <div style={{ position:"absolute", top:dropPos.top+2, left:dropPos.left, zIndex:9999, background:"#fff", border:"1px solid #e5e7eb", borderRadius:8, boxShadow:"0 8px 28px rgba(0,0,0,0.14)", minWidth:190, maxHeight:310, display:"flex", flexDirection:"column" }}>
+              <div style={{ overflowY:"auto", flex:1 }}>
+                {(colOptions[openCol] ?? []).map((opt) => {
+                  const isFiltering = openCol in colFilters;
+                  const cur = isFiltering ? (colFilters[openCol] ?? []) : null;
+                  const checked = cur === null || cur.includes(opt);
+                  return (
+                    <label key={opt} style={{ display:"flex", alignItems:"center", gap:9, padding:"7px 12px", cursor:"pointer", fontSize:12, borderBottom:"1px solid #f1f5f9", background:"#fff" }}
+                      onMouseEnter={(ev) => { ev.currentTarget.style.background = "#f3f4f6"; }}
+                      onMouseLeave={(ev) => { ev.currentTarget.style.background = "#fff"; }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleColValue(openCol, opt)}
+                        style={{ accentColor:"#c2410c", width:14, height:14, cursor:"pointer" }} />
+                      <span style={{ fontWeight: checked ? 600 : 400, color: checked ? "#111827" : "#9ca3af" }}>{opt}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <label style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 12px", borderTop:"1px solid #e5e7eb", cursor:"pointer", fontSize:12, background:"#f9fafb", borderRadius:"0 0 8px 8px" }}>
+                <input type="checkbox" checked={!(openCol in colFilters)}
+                  ref={(el) => { if (el) el.indeterminate = (openCol in colFilters) && (colFilters[openCol]?.length ?? 0) > 0; }}
+                  onChange={() => {
+                    const isAll = !(openCol in colFilters);
+                    if (isAll) { setColFilters((p) => ({ ...p, [openCol]: [] })); }
+                    else { setColFilters((p) => { const c = {...p}; delete c[openCol]; return c; }); }
+                  }}
+                  style={{ accentColor:"#c2410c", width:14, height:14, cursor:"pointer" }} />
+                <span style={{ fontWeight:600, color:"#374151" }}>Tout sélectionner</span>
+              </label>
+            </div>
+          </>,
+          document.body
+        )}
         <div className="panelHeader">
           <div>
             <h2>Tableau de bord mensuel</h2>
             <p>TF, TG, accidents, jours perdus, causeries et formations par mois.</p>
           </div>
+          {hasAnyColFilter && (
+            <button type="button" onClick={() => setColFilters({})} style={{ fontSize:11, padding:"3px 10px", borderRadius:6, border:"1px solid #c2410c", background:"#fff7ed", color:"#c2410c", cursor:"pointer", fontWeight:700, marginTop:4 }}>
+              ✕ Réinitialiser ({tableData.length}/{computedRows.length} mois)
+            </button>
+          )}
         </div>
         <div className="tableWrap">
           <table>
@@ -215,11 +315,19 @@ export function IndicateursTFTGDashboard() {
                 <th>TF</th>
                 <th>TG</th>
                 <th>TAMS</th>
-                <th>Statut TF</th>
+                <th style={{ padding:"4px 8px", textAlign:"left" }}>
+                  <button ref={(el) => { btnRefs.current["statutTF"] = el; }} type="button" onClick={() => openDropdown("statutTF")}
+                    style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 8px", border: openCol === "statutTF" ? "1px solid #c2410c" : "1px solid transparent", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:"0.05em", background: openCol === "statutTF" ? "#fff7ed" : "statutTF" in colFilters ? "#fff7ed" : "transparent", color: "statutTF" in colFilters ? "#c2410c" : "var(--fg)", transition:"all 0.12s" }}>
+                    Statut TF
+                    {"statutTF" in colFilters
+                      ? <span style={{ background:"#c2410c", color:"#fff", borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, fontWeight:700, flexShrink:0 }}>{(colFilters["statutTF"] ?? []).length}</span>
+                      : <span style={{ fontSize:10, opacity:0.5 }}>▾</span>}
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {computedRows.map((row) => (
+              {tableData.map((row) => (
                 <tr key={row.mois}>
                   <td><strong>{row.mois}</strong></td>
                   <td>{row.heures.toLocaleString("fr-FR")}</td>
